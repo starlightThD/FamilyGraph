@@ -10,59 +10,56 @@
 
 ```SQL
 Person(					-- 个人表
-    id PRIMARY KEY,		-- ID 作为主键
+    person_id PRIMARY KEY,	-- ID 作为主键
     first name,			-- 姓
     last name,			-- 名
     gender,				-- 性别
     birth_date,			-- 出生日期
     death_date			-- 死亡日期
 )
+person_id -> first name, last name, gender, birth_date, death_date
 
-Relationship(			-- 关系表
-    id PRIMARY KEY,		-- ID 作为主键
-    person1_id,			-- 人物1
-    person2_id,			-- 人物2
-    relation_type,		-- 关系类型
+
+Event(					-- 事件表
+    event_id PRIMARY KEY，	-- ID 作为主键
+    type,				-- 事件类型
+    start_date,			-- 发生日期
+	end_date,			-- 结束日期
     confidence_score,	-- 置信度
     source				-- 信息来源
 )
+id -> type, start_date, end_date, confidence_score, source
 
-Event(					-- 事件表，记录与人相关的事件
-    id PRIMARY KEY，	-- ID 作为主键
-    type,				-- 事件类型
-    date,				-- 发生日期
-    location			-- 发生地点
-)
-
-Person_Event(			-- 人物事件表
+Person_Event(
     person_id,			-- 人物
     event_id,			-- 事件
-    (person_id, event_id) PRIMARY KEY,
-    role				-- 角色
+	role				-- 身份
 )
+(person_id, event_id) -> role
+-- 到此三张表，保证BCNF，但是根据关系查找人会很慢（如查找A的儿子，需要先找到决定A是父亲的事件，在根据事件找到被决定为儿子的人）
+
+-- 待选，用于读优化
+Relationship(
+    rel_id PRIMARY KEY,
+    person1_id,
+    person2_id,
+    relationship_type,
+    start_date,
+    end_date,
+    event_id
+)
+-- 需软约束person1和person2的顺序，如年长在前，男性在前，以提查询效率
+
 ```
 
-该设计遵循第三范式`3NF`原则，即每个非主属性必须直接依赖于主键，不能存在传递依赖
-后续会尝试将关系优化至`BCNF`范式，需着重处理
-
-```
-
-Relationsip(
-	(person1_id, person2_id) -> relationship
-)
-Person_Event(
-	event_id -> role
-)
-以解决非主键依赖关系
-
-```
+该设计遵循`BCNF`原则
 
 - 阶段一（当前）：根据实际情况抽象出表的结构
 	让Person表专注于存储个人信息，而不是记录复杂的人际关系
-	设计Relationship表用于存储人际关系，便于“以PersonA为中心的查询”和“以关系为筛选关系的查询”
 	Event用于记录事件，现阶段处于仅记录的状态
-	Person_Event记录了与之相关的人及其扮演角色，用于后续从事件推导人际关系
-	当前任务为实现四张表的基本操作，以及实现简单的关系查询
+	Person_Event通过事件来决定人的身份，确保身份可辨识和唯一存储
+
+	可能补充设计Relationship表用于存储人际关系，便于“以PersonA为中心的查询”和“以关系为筛选关系的查询”
 
 ## 使用方法
 
