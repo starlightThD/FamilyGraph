@@ -9,58 +9,59 @@
 本系统设计的结构如下
 
 ```SQL
-Person(					-- 个人表
-    person_id PRIMARY KEY,	-- ID 作为主键
-    first name,			-- 姓
-    last name,			-- 名
-    gender,				-- 性别
-    birth_date,			-- 出生日期
-    death_date			-- 死亡日期
-)
-person_id -> first name, last name, gender, birth_date, death_date
+-- 用户表
+CREATE TABLE User (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE,
+    password_hash VARCHAR(255),
+    email VARCHAR(100)
+);
 
+-- 族谱表
+CREATE TABLE FamilyTree (
+    tree_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,        -- 谱名
+    surname VARCHAR(50) NOT NULL,      -- 姓氏
+    revision_date DATE,                -- 修谱时间
+    creator_id INT NOT NULL,           -- 创建用户
+    FOREIGN KEY (creator_id) REFERENCES User(user_id)
+);
 
-Event(					-- 事件表
-    event_id PRIMARY KEY，	-- ID 作为主键
-    type,				-- 事件类型
-    start_date,			-- 发生日期
-	end_date,			-- 结束日期
-    confidence_score,	-- 置信度
-    source				-- 信息来源
-)
-id -> type, start_date, end_date, confidence_score, source
+-- 成员表
+CREATE TABLE Person (
+    person_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    tree_id INT NOT NULL,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),              -- 姓氏可冗余，也可从族谱继承
+    gender CHAR(1) CHECK (gender IN ('M','F')),
+    birth_date DATE,
+    death_date DATE,
+    biography TEXT,                     -- 生平简介
+    generation INT NOT NULL,            -- 辈分（从始祖0开始）
+    FOREIGN KEY (tree_id) REFERENCES FamilyTree(tree_id),
+    INDEX idx_tree_gen (tree_id, generation),
+    INDEX idx_name (last_name, first_name)
+);
 
-Person_Event(
-    person_id,			-- 人物
-    event_id,			-- 事件
-	role				-- 身份
-)
-(person_id, event_id) -> role
--- 到此三张表，保证BCNF，但是根据关系查找人会很慢（如查找A的儿子，需要先找到决定A是父亲的事件，在根据事件找到被决定为儿子的人）
-
--- 待选，用于读优化
-Relationship(
-    rel_id PRIMARY KEY,
-    person1_id,
-    person2_id,
-    relationship_type,
-    start_date,
-    end_date,
-    event_id
-)
--- 需软约束person1和person2的顺序，如年长在前，男性在前，以提查询效率
+-- 关系表（血缘 + 婚姻）
+CREATE TABLE Relationship (
+    rel_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    person1_id BIGINT NOT NULL,         -- 长辈/夫/一方
+    person2_id BIGINT NOT NULL,         -- 晚辈/妻/另一方
+    rel_type ENUM('father','mother','child','husband','wife','other') NOT NULL,
+    start_date DATE,                    -- 婚姻开始/关系生效
+    end_date DATE,                      -- 离婚/关系结束
+    FOREIGN KEY (person1_id) REFERENCES Person(person_id),
+    FOREIGN KEY (person2_id) REFERENCES Person(person_id),
+    INDEX idx_p1_type (person1_id, rel_type),
+    INDEX idx_p2_type (person2_id, rel_type),
+    UNIQUE KEY uk_pair (person1_id, person2_id, rel_type)
+);
 
 ```
 
-该设计遵循`BCNF`原则
-
-- 阶段一（当前）：根据实际情况抽象出表的结构
-	让Person表专注于存储个人信息，而不是记录复杂的人际关系
-	Event用于记录事件，现阶段处于仅记录的状态
-	Person_Event通过事件来决定人的身份，确保身份可辨识和唯一存储
-
-	可能补充设计Relationship表用于存储人际关系，便于“以PersonA为中心的查询”和“以关系为筛选关系的查询”
-
+该设计满足`BCNF`范式
+		
 ## 使用方法
 
 暂无
