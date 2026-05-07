@@ -20,10 +20,10 @@ User (
 -- 族谱表
 FamilyTree (
     tree_id,
-    name,				-- 谱名
-    surname,			-- 姓氏
-    revision_date,		-- 修谱时间
-    creator_id,			-- 创建用户
+    name,                -- 谱名
+    surname,             -- 姓氏
+    revision_date,       -- 修谱时间
+    creator_id,          -- 创建用户
 );
 
 -- 成员表
@@ -52,15 +52,35 @@ KinshipClosure(
 
     PRIMARY KEY (ancestor_id, descendant_id)
 )
-
 ```
 
-该设计满足`BCNF`范式
-		
-## 使用方法
+该设计满足 `BCNF` 范式
 
-暂无
+## 使用方法（PostgreSQL 本地安装）
+
+1. 本地安装 PostgreSQL（建议 14+），并确保 `psql`、`createdb` 可用。
+2. 创建数据库：
+
+```bash
+createdb -U postgres fgdb
+```
+
+3. 导入表结构：
+
+```bash
+psql -U postgres -d fgdb -f init/FG.sql
+```
+
+4. 启动前端 demo：
+
+```bash
+cd frontend
+pip install -r requirements.txt
+python app.py
+```
+
+当前仓库已移除 MySQL 容器编排与 MySQL 专用配置，默认以本地 PostgreSQL 为目标数据库。
 
 ## 贡献者
 
-Github： starlightThD
+Github：starlightThD
