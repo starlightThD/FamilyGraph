@@ -12,6 +12,8 @@ TABLE_LOADS = [
     ("KinshipClosure", "kinship_closure.csv"),
 ]
 
+TRUNCATE_ORDER = ["Relationship", "KinshipClosure", "Person", "FamilyTree", "User"]
+
 
 def get_connection():
     return psycopg2.connect(
@@ -37,6 +39,9 @@ def main():
 
     with get_connection() as conn:
         with conn.cursor() as cursor:
+            for table_name in TRUNCATE_ORDER:
+                cursor.execute(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE')
+            conn.commit()
             for table_name, file_name in TABLE_LOADS:
                 csv_path = data_dir / file_name
                 if not csv_path.exists():

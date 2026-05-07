@@ -4,6 +4,11 @@
 
 {% block content %}
 <h1>族谱与成员管理</h1>
+{% if message %}
+<section class="panel">
+  <p>{{ message }}</p>
+</section>
+{% endif %}
 <section class="panel">
   <h2>公共可见族谱</h2>
   <table class="table">
@@ -40,9 +45,10 @@
 <section class="panel two-col">
   <div>
     <h2>新增/编辑族谱</h2>
-    <form class="form" data-todo="TODO: 族谱新增/修改接口未接入（POST/PUT /api/family-trees）">
+    <form class="form" method="post">
       <label>族谱名称<input type="text" name="tree_name" required /></label>
-      <label>描述<textarea name="description" rows="3"></textarea></label>
+      <label>姓氏<input type="text" name="surname" placeholder="例如：张" /></label>
+      <label>创建者用户ID<input type="number" name="creator_id" value="1" min="1" /></label>
       <button type="submit">保存族谱</button>
     </form>
   </div>
