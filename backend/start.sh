@@ -10,4 +10,5 @@ export DB_USER=$USER
 export DB_PASSWORD=
 export DB_HOST=/var/run/postgresql
 export DB_NAME=fgdb
+python3 ./backend/load_csv.py
 python3 ./backend/main.py
