@@ -38,6 +38,11 @@ body {
   font-weight: 700;
 }
 
+.role-indicator {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
 .nav {
   display: flex;
   flex-wrap: wrap;

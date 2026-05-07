@@ -18,6 +18,9 @@
         <a href="{{ url_for('tree_preview') }}">树形预览</a>
         <a href="{{ url_for('queries') }}">关系查询</a>
       </nav>
+      <div class="role-indicator">
+        当前身份：{{ '管理员' if viewer_role == 'admin' else '游客' }}
+      </div>
     </header>
 
     <main class="page">

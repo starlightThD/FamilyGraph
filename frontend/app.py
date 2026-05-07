@@ -1,6 +1,28 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 app = Flask(__name__)
+
+
+def get_viewer_role():
+    """
+    Demo access switch:
+    - /...?as=admin -> admin mode
+    - default -> guest mode
+    """
+    return request.args.get('as', 'guest').strip().lower()
+
+
+def is_admin_view():
+    return get_viewer_role() == 'admin'
+
+
+@app.context_processor
+def inject_access_context():
+    role = get_viewer_role()
+    return {
+        'viewer_role': 'admin' if role == 'admin' else 'guest',
+        'can_edit': role == 'admin',
+    }
 
 
 @app.route('/')
@@ -31,12 +53,12 @@ def dashboard():
 
 @app.route('/family-trees')
 def family_trees():
-    # TODO: 从后端加载当前用户创建或被邀请的族谱列表
+    # 游客也可查看数据；仅管理员可进行增删改。
     trees = [
-        {'id': 1, 'name': '张氏族谱', 'role': '创建者'},
-        {'id': 2, 'name': '李氏支系', 'role': '协作者'},
+        {'id': 1, 'name': '张氏族谱', 'role': '公共可见'},
+        {'id': 2, 'name': '李氏支系', 'role': '公共可见'},
     ]
-    return render_template('family_trees.html', trees=trees)
+    return render_template('family_trees.html', trees=trees, can_edit=is_admin_view())
 
 
 @app.route('/tree-preview')

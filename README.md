@@ -14,7 +14,8 @@ User (
     user_id,
     username,
     password_hash,
-    email
+    email,
+    is_admin            -- 是否管理员（仅管理员可写操作）
 );
 
 -- 族谱表
@@ -69,6 +70,12 @@ createdb -U postgres fgdb
 
 ```bash
 psql -U postgres -d fgdb -f init/FG.sql
+```
+
+可选：将某个用户设为管理员（仅管理员可新增/编辑/删除）
+
+```sql
+UPDATE "User" SET is_admin = TRUE WHERE username = '你的用户名';
 ```
 
 4. 启动前端 demo：

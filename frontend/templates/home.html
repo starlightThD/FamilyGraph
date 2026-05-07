@@ -6,6 +6,7 @@
 <section class="panel">
   <h1>FamilyGraph 前端原型</h1>
   <p>当前页面已覆盖登录、注册、Dashboard、族谱与成员管理、树形预览、祖先与亲缘关系查询。</p>
-  <p class="todo">TODO: 接入后端鉴权后，导航和页面数据应根据登录态与权限动态控制。</p>
+  <p>访问策略：游客可查看全部族谱与关系数据，只有管理员可以新增、编辑、删除数据。</p>
+  <p class="todo">Demo 切换身份方式：在 URL 后追加 <code>?as=admin</code> 可模拟管理员视角；默认是游客。</p>
 </section>
 {% endblock %}

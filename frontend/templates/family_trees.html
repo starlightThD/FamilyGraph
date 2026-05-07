@@ -5,7 +5,7 @@
 {% block content %}
 <h1>族谱与成员管理</h1>
 <section class="panel">
-  <h2>我的可见族谱</h2>
+  <h2>公共可见族谱</h2>
   <table class="table">
     <thead>
       <tr>
@@ -22,16 +22,21 @@
         <td>{{ tree.name }}</td>
         <td>{{ tree.role }}</td>
         <td>
+          {% if can_edit %}
           <button class="small">编辑</button>
           <button class="small warn">删除</button>
+          {% else %}
+          <span>仅管理员可编辑</span>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="todo">TODO: 接入族谱 CRUD 接口，且后端需按当前用户权限过滤可见族谱。</p>
+  <p class="todo">TODO: 后端接口应允许游客读取（GET），并仅允许管理员执行写操作（POST/PUT/DELETE）。</p>
 </section>
 
+{% if can_edit %}
 <section class="panel two-col">
   <div>
     <h2>新增/编辑族谱</h2>
@@ -51,6 +56,12 @@
     </form>
   </div>
 </section>
+{% else %}
+<section class="panel">
+  <h2>写操作入口已隐藏</h2>
+  <p>当前为游客模式，可浏览但不可修改。请使用管理员身份登录后再进行新增、编辑、删除。</p>
+</section>
+{% endif %}
 
 <section class="panel">
   <h2>成员管理与模糊查找</h2>
@@ -59,6 +70,7 @@
     <button type="submit">查找成员</button>
   </form>
 
+  {% if can_edit %}
   <form class="form" data-todo="TODO: 成员 CRUD 接口未接入（POST/PUT/DELETE /api/members）">
     <label>成员姓名<input type="text" name="member_name" required /></label>
     <label>性别
@@ -71,6 +83,9 @@
     <label>母亲ID<input type="number" name="mother_id" /></label>
     <button type="submit">新增成员</button>
   </form>
+  {% else %}
+  <p>游客仅可查询成员，新增/修改/删除成员仅管理员可用。</p>
+  {% endif %}
 
   <div id="search-result" class="result-box">成员搜索结果将显示在这里。</div>
 </section>
