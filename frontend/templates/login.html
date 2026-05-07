@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block title %}用户登录{% endblock %}
+
+{% block content %}
+<section class="panel narrow">
+  <h1>用户登录</h1>
+  <form class="form" data-todo="TODO: 登录接口未接入，等待后端实现 POST /api/auth/login">
+    <label>邮箱或用户名<input type="text" name="username" required /></label>
+    <label>密码<input type="password" name="password" required /></label>
+    <button type="submit">登录</button>
+  </form>
+  <p class="todo">TODO: 登录后仅展示当前用户创建或受邀的族谱。</p>
+</section>
+{% endblock %}
