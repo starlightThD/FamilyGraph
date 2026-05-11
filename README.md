@@ -63,7 +63,7 @@ KinshipClosure(
 1. 本地安装 PostgreSQL（建议 14+），并确保 `psql`、`createdb` 可用。
 
 == 生成数据表 ==
-`python3 ./data/generate.py`
+`python3 ./data/generate.py --seed 20260511 --gen 10 `
 
 == 一键启动 ==
 `./application/start.sh`
