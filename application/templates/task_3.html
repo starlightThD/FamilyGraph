@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Task 3 - Longest-Lived Generation{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Task 3</p>
+    <h1>Longest-Lived Generation Depth</h1>
+    <p class="page-subtitle">Find the generation depth with the longest average lifespan in a family tree.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('family_trees') }}">Family Trees</a>
+    <a class="btn" href="{{ url_for('dashboard') }}">Dashboard</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Generation Lifespan Stats</h2>
+      <p class="panel-subtitle">Depth starts from the earliest generation in the tree.</p>
+    </div>
+  </div>
+  <form class="form inline" data-todo="TODO: Implement longest-lived generation query.">
+    <label>Family Tree ID<input type="number" name="tree_id" required /></label>
+    <button type="submit" class="btn">Run Query</button>
+  </form>
+  <div class="result-box">Results will appear here.</div>
+</section>
+{% endblock %}

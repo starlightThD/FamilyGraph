@@ -59,7 +59,20 @@ KinshipClosure(
 
 ## 使用方法（PostgreSQL 本地安装）
 
+
 1. 本地安装 PostgreSQL（建议 14+），并确保 `psql`、`createdb` 可用。
+
+== 生成数据表 ==
+`python3 ./data/generate.py`
+
+== 一键启动 ==
+`./application/start.sh`
+
+== 不更新数据库使用 ==
+`export LOAD_CSV=false`
+`./application/start.sh`
+之后就可以直接进行前端的使用与验证。修改代码后也可以直接刷新前端运行。
+
 2. 创建数据库：
 
 ```bash

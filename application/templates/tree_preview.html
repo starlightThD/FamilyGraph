@@ -13,21 +13,45 @@
 </li>
 {% endmacro %}
 
-{% block title %}树形预览{% endblock %}
+{% block title %}Tree Preview{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Tree Preview</p>
+    <h1>Tree Preview</h1>
+    <p class="page-subtitle">Load a hierarchical view by tree and root node to verify structure quickly.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('family_trees') }}">Family Trees</a>
+    <a class="btn" href="{{ url_for('queries') }}">Relationship Search</a>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<h1>树形预览</h1>
 <section class="panel">
-  <form class="form inline" data-todo="TODO: 按族谱ID和分支根节点ID加载树形数据接口未接入">
-    <label>族谱ID<input type="number" name="tree_id" required /></label>
-    <label>分支根节点ID<input type="number" name="root_member_id" required /></label>
-    <button type="submit">加载分支树</button>
+  <div class="panel-header">
+    <div>
+      <h2>Load Branch Tree</h2>
+      <p class="panel-subtitle">Use tree ID and root node ID to locate a branch.</p>
+    </div>
+  </div>
+  <form class="form inline" data-todo="TODO: Tree data API not wired (tree ID + root member ID).">
+    <label>Tree ID<input type="number" name="tree_id" required /></label>
+    <label>Root Member ID<input type="number" name="root_member_id" required /></label>
+    <button type="submit" class="btn">Load Branch</button>
   </form>
-  <p class="todo">TODO: 当前是静态示例树，后续应由后端返回层级结构数据。</p>
+  <p class="todo">TODO: This is a static sample. Replace with backend hierarchical data.</p>
 </section>
 
 <section class="panel">
-  <h2>示例分支树（层级结构）</h2>
+  <div class="panel-header">
+    <div>
+      <h2>Sample Branch Tree</h2>
+      <p class="panel-subtitle">Nodes show the current branch hierarchy.</p>
+    </div>
+  </div>
   <ul class="tree">
     {{ render_node(sample_branch) }}
   </ul>

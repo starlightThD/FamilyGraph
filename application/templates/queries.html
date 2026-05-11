@@ -1,42 +1,64 @@
 {% extends 'base.html' %}
 
-{% block title %}祖先与亲缘查询{% endblock %}
+{% block title %}Ancestor and Relationship Search{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Relationship Search</p>
+    <h1>Ancestor and Relationship Search</h1>
+    <p class="page-subtitle">Enter member IDs to verify ancestor chains or relationship paths.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('tree_preview') }}">Tree Preview</a>
+    <a class="btn" href="{{ url_for('family_trees') }}">Family Trees</a>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<h1>祖先与亲缘关系查询</h1>
-
-<section class="panel two-col">
-  <div>
-    <h2>人物祖先查询</h2>
+<section class="grid-two">
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Ancestor Search</h2>
+        <p class="panel-subtitle">Trace an ancestor chain upward from a member.</p>
+      </div>
+    </div>
     <form class="form" method="get">
-      <label>人物ID<input type="number" name="ancestor_member_id" required /></label>
-      <button type="submit">查询祖先树</button>
+      <label>Member ID<input type="number" name="ancestor_member_id" required /></label>
+      <button type="submit" class="btn">Search Ancestors</button>
     </form>
     <div class="result-box">
       {% if ancestor_result %}
       {% for row in ancestor_result %}
-      <div>祖先ID={{ row[0] }}，姓名={{ row[1] }}，代际深度={{ row[2] }}</div>
+      <div>Ancestor ID={{ row[0] }}, Name={{ row[1] }}, Generation Depth={{ row[2] }}</div>
       {% endfor %}
       {% else %}
-      祖先树结果会显示在这里。
+      Ancestor results will appear here.
       {% endif %}
     </div>
   </div>
 
-  <div>
-    <h2>人物亲缘关系查询</h2>
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Relationship Search</h2>
+        <p class="panel-subtitle">Find the relationship path between two members.</p>
+      </div>
+    </div>
     <form class="form" method="get">
-      <label>人物A ID<input type="number" name="from_id" required /></label>
-      <label>人物B ID<input type="number" name="to_id" required /></label>
-      <button type="submit">查询关系通路</button>
+      <label>Member A ID<input type="number" name="from_id" required /></label>
+      <label>Member B ID<input type="number" name="to_id" required /></label>
+      <button type="submit" class="btn">Search Relationship</button>
     </form>
     <div class="result-box">
       {% if relationship_result %}
       {% for row in relationship_result %}
-      <div>直接关系：{{ row[0] }}</div>
+      <div>Direct Relationship: {{ row[0] }}</div>
       {% endfor %}
       {% else %}
-      若存在亲缘关系，路径结果将显示在这里。
+      If a relationship exists, the path will appear here.
       {% endif %}
     </div>
   </div>

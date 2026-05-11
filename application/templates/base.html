@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,24 +8,66 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">FamilyGraph</div>
-      <nav class="nav">
-        <a href="{{ url_for('home') }}">首页</a>
-        <a href="{{ url_for('login') }}">登录</a>
-        <a href="{{ url_for('register') }}">注册</a>
-        <a href="{{ url_for('dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('family_trees') }}">族谱管理</a>
-        <a href="{{ url_for('tree_preview') }}">树形预览</a>
-        <a href="{{ url_for('queries') }}">关系查询</a>
-      </nav>
-      <div class="role-indicator">
-        当前身份：{{ '管理员' if viewer_role == 'admin' else '游客' }}
+      <div class="brand">
+        <span class="brand-mark">FG</span>
+        <div>
+          <div class="brand-name">FamilyGraph</div>
+          <div class="brand-subtitle">Family Data Console</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="role-indicator">
+          Role: {{ 'Admin' if viewer_role == 'admin' else 'Guest' }}
+          {% if current_user %}
+          <span class="muted">({{ current_user.username }})</span>
+          {% endif %}
+        </div>
       </div>
     </header>
 
-    <main class="page">
-      {% block content %}{% endblock %}
-    </main>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-group">
+          <div class="sidebar-title">Overview</div>
+          <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+          <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-title">Family Data</div>
+          <a class="nav-link" href="{{ url_for('family_trees') }}">Family Trees</a>
+          <a class="nav-link" href="{{ url_for('tree_preview') }}">Tree Preview</a>
+          <a class="nav-link" href="{{ url_for('queries') }}">Relationship Search</a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-title">Tasks</div>
+          <a class="nav-link" href="{{ url_for('task_1') }}">1. Kin Radius</a>
+          <a class="nav-link" href="{{ url_for('task_2') }}">2. Ancestors</a>
+          <a class="nav-link" href="{{ url_for('task_3') }}">3. Longest-Lived Gen</a>
+          <a class="nav-link" href="{{ url_for('task_4') }}">4. Member Filters</a>
+          <a class="nav-link" href="{{ url_for('task_5') }}">5. Early Births</a>
+        </div>
+        <div class="sidebar-group">
+          <div class="sidebar-title">Account</div>
+          {% if current_user %}
+          <form class="inline-form" method="post" action="{{ url_for('logout') }}">
+            <button type="submit" class="btn ghost small">Log Out</button>
+          </form>
+          {% else %}
+          <a class="nav-link" href="{{ url_for('login') }}">Log In</a>
+          <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+          {% endif %}
+        </div>
+      </aside>
+
+      <main class="page">
+        <div class="page-shell">
+          {% block page_header %}{% endblock %}
+          <div class="page-content">
+            {% block content %}{% endblock %}
+          </div>
+        </div>
+      </main>
+    </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   </body>

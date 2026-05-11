@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block title %}Task 1 - Kin Radius{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Task 1</p>
+    <h1>Kin Radius (Depth <= 1)</h1>
+    <p class="page-subtitle">Query parents, peers, and children around a single person.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('queries') }}">Relationship Search</a>
+    <a class="btn" href="{{ url_for('family_trees') }}">Family Trees</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Center Person Lookup</h2>
+      <p class="panel-subtitle">Depth is limited to 1 (parents, same generation, children).</p>
+    </div>
+  </div>
+  <form class="form inline" method="get">
+    <label>Center Person ID<input type="number" name="person_id" value="{{ request.args.get('person_id', '') }}" required /></label>
+    <button type="submit" class="btn">Run Query</button>
+  </form>
+  <div class="result-box">Results will appear here.</div>
+</section>
+
+{% if message %}
+<div class="alert">{{ message }}</div>
+{% endif %}
+
+{% if person %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Result Summary</h2>
+      <p class="panel-subtitle">Center person and depth-1 connections.</p>
+    </div>
+  </div>
+  <div class="result-box">
+    <div>Person: {{ person.name }} (ID {{ person.id }})</div>
+    <div>Tree ID: {{ person.tree_id }}</div>
+    <div>Gender: {{ person.gender }}</div>
+    <div>Birth Date: {{ person.birth_date or 'Unknown' }}</div>
+    <div>Death Date: {{ person.death_date or '—' }}</div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Parents</h2>
+      <p class="panel-subtitle">Direct parents of the center person.</p>
+    </div>
+  </div>
+  <div class="result-box">
+    {% if parents %}
+    {% for parent in parents %}
+    <div>{{ parent[1] }} (ID {{ parent[0] }})</div>
+    {% endfor %}
+    {% else %}
+    <div>No parent records found.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Spouse</h2>
+      <p class="panel-subtitle">Spouse must exist before children are queried.</p>
+    </div>
+  </div>
+  <div class="result-box">
+    {% if spouses %}
+    {% for spouse in spouses %}
+    <div>{{ spouse[1] }} (ID {{ spouse[0] }})</div>
+    {% endfor %}
+    {% else %}
+    <div>No spouse records found.</div>
+    {% endif %}
+  </div>
+  {% if spouse_gate_note %}
+  <div class="notice">{{ spouse_gate_note }}</div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Same Generation (Siblings)</h2>
+      <p class="panel-subtitle">Members sharing at least one parent.</p>
+    </div>
+  </div>
+  <div class="result-box">
+    {% if siblings %}
+    {% for sibling in siblings %}
+    <div>{{ sibling[1] }} (ID {{ sibling[0] }})</div>
+    {% endfor %}
+    {% else %}
+    <div>No siblings found.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Children</h2>
+      <p class="panel-subtitle">Children are returned only when a spouse exists.</p>
+    </div>
+  </div>
+  <div class="result-box">
+    {% if spouses %}
+      {% if children %}
+      {% for child in children %}
+      <div>{{ child[1] }} (ID {{ child[0] }})</div>
+      {% endfor %}
+      {% else %}
+      <div>No children found.</div>
+      {% endif %}
+    {% else %}
+    <div>Children lookup skipped until a spouse exists.</div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,12 +1,43 @@
 {% extends 'base.html' %}
 
-{% block title %}FamilyGraph 首页{% endblock %}
+{% block title %}FamilyGraph Home{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Overview</p>
+    <h1>FamilyGraph Console</h1>
+    <p class="page-subtitle">A focused workspace for family tree data, built for fast lookup, search, and maintenance.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{{ url_for('family_trees') }}">Go to Family Trees</a>
+    <a class="btn ghost" href="{{ url_for('queries') }}">Relationship Search</a>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
 <section class="panel">
-  <h1>FamilyGraph 前端原型</h1>
-  <p>当前页面已覆盖登录、注册、Dashboard、族谱与成员管理、树形预览、祖先与亲缘关系查询。</p>
-  <p>访问策略：游客可查看全部族谱与关系数据，只有管理员可以新增、编辑、删除数据。</p>
-  <p class="todo">Demo 切换身份方式：在 URL 后追加 <code>?as=admin</code> 可模拟管理员视角；默认是游客。</p>
+  <div class="panel-header">
+    <div>
+      <h2>Covered Features</h2>
+      <p class="panel-subtitle">Login, registration, dashboard, family trees, tree preview, and ancestor/relationship search.</p>
+    </div>
+  </div>
+  <ul class="bullet-list">
+    <li>Browse members and relationships by family tree; admins can create, edit, and delete.</li>
+    <li>Tree preview highlights branch structure for quick verification.</li>
+    <li>Ancestor and relationship path queries for cross-checking.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Access Policy</h2>
+      <p class="panel-subtitle">Guests can browse data; admins have write access.</p>
+    </div>
+  </div>
+  <div class="notice">Guest mode can view family trees and relationships, but cannot create, edit, or delete.</div>
 </section>
 {% endblock %}

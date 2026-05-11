@@ -2,25 +2,42 @@
 
 {% block title %}Dashboard{% endblock %}
 
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Stats Overview</p>
+    <h1>Dashboard</h1>
+    <p class="page-subtitle">High-level family tree stats to understand size and structure quickly.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('family_trees') }}">View Family Trees</a>
+    <a class="btn" href="{{ url_for('queries') }}">Relationship Search</a>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
-<h1>Dashboard</h1>
 <div class="stats-grid">
   <article class="stat-card">
-    <h2>家族总人数</h2>
-    <p>{{ stats.total_members }}</p>
+    <h2>Total Members</h2>
+    <p class="stat-number">{{ stats.total_members }}</p>
+    <span class="stat-meta">All members</span>
   </article>
   <article class="stat-card">
-    <h2>男性人数</h2>
-    <p>{{ stats.male_count }}</p>
+    <h2>Male Members</h2>
+    <p class="stat-number">{{ stats.male_count }}</p>
+    <span class="stat-meta">Male count</span>
   </article>
   <article class="stat-card">
-    <h2>女性人数</h2>
-    <p>{{ stats.female_count }}</p>
+    <h2>Female Members</h2>
+    <p class="stat-number">{{ stats.female_count }}</p>
+    <span class="stat-meta">Female count</span>
   </article>
   <article class="stat-card">
-    <h2>男女比例</h2>
-    <p>{{ stats.male_count }} : {{ stats.female_count }}</p>
+    <h2>Male to Female</h2>
+    <p class="stat-number">{{ stats.male_count }} : {{ stats.female_count }}</p>
+    <span class="stat-meta">Current structure</span>
   </article>
 </div>
-<p class="todo">TODO: 统计数据改为后端实时聚合结果，并支持按族谱筛选。</p>
+<p class="todo">TODO: Replace stats with backend aggregation and support family tree filters.</p>
 {% endblock %}

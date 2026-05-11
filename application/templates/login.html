@@ -1,15 +1,26 @@
 {% extends 'base.html' %}
 
-{% block title %}用户登录{% endblock %}
+{% block title %}Log In{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Account</p>
+    <h1>Log In</h1>
+    <p class="page-subtitle">Log in as an admin to create, edit, and delete data.</p>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<section class="panel narrow">
-  <h1>用户登录</h1>
-  <form class="form" data-todo="TODO: 登录接口未接入，等待后端实现 POST /api/auth/login">
-    <label>邮箱或用户名<input type="text" name="username" required /></label>
-    <label>密码<input type="password" name="password" required /></label>
-    <button type="submit">登录</button>
+<section class="panel auth-card">
+  {% if message %}
+  <div class="result-box">{{ message }}</div>
+  {% endif %}
+  <form class="form" method="post">
+    <label>Email or Username<input type="text" name="username" required /></label>
+    <label>Password<input type="password" name="password" required /></label>
+    <button type="submit" class="btn">Log In</button>
   </form>
-  <p class="todo">TODO: 后端登录后返回 is_admin，并据此控制写操作权限；游客无需登录即可查看数据。</p>
 </section>
 {% endblock %}

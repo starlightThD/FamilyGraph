@@ -17,6 +17,3 @@ Thumbs.db
 # Local env
 .env
 .env.*
-
-# Database data
-/database/

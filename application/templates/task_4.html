@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Task 4 - Member Filters{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Task 4</p>
+    <h1>Filter Members by Conditions</h1>
+    <p class="page-subtitle">Filter members in a family tree by age, marital status, children, and living status.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('family_trees') }}">Family Trees</a>
+    <a class="btn" href="{{ url_for('queries') }}">Relationship Search</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Member Filters</h2>
+      <p class="panel-subtitle">Set filters and return matching members from a selected tree.</p>
+    </div>
+  </div>
+  <form class="form" data-todo="TODO: Implement member filter query.">
+    <label>Family Tree ID<input type="number" name="tree_id" required /></label>
+    <div class="grid-two">
+      <label>Min Age<input type="number" name="min_age" min="0" /></label>
+      <label>Max Age<input type="number" name="max_age" min="0" /></label>
+    </div>
+    <div class="grid-two">
+      <label>Married
+        <select name="married">
+          <option value="any">Any</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </label>
+      <label>Has Children
+        <select name="has_children">
+          <option value="any">Any</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      </label>
+    </div>
+    <label>Living Status
+      <select name="alive">
+        <option value="any">Any</option>
+        <option value="yes">Alive</option>
+        <option value="no">Deceased</option>
+      </select>
+    </label>
+    <button type="submit" class="btn">Run Query</button>
+  </form>
+  <div class="result-box">Results will appear here.</div>
+</section>
+{% endblock %}

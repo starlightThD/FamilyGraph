@@ -1,17 +1,28 @@
 {% extends 'base.html' %}
 
-{% block title %}用户注册{% endblock %}
+{% block title %}Register{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Account</p>
+    <h1>Register</h1>
+    <p class="page-subtitle">Create an account to manage family trees and members.</p>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<section class="panel narrow">
-  <h1>用户注册</h1>
-  <form class="form" data-todo="TODO: 注册接口未接入，等待后端实现 POST /api/auth/register">
-    <label>用户名<input type="text" name="username" required /></label>
-    <label>邮箱<input type="email" name="email" required /></label>
-    <label>密码<input type="password" name="password" required /></label>
-    <label>确认密码<input type="password" name="confirm_password" required /></label>
-    <button type="submit">注册</button>
+<section class="panel auth-card">
+  {% if message %}
+  <div class="result-box">{{ message }}</div>
+  {% endif %}
+  <form class="form" method="post">
+    <label>Username<input type="text" name="username" required /></label>
+    <label>Email<input type="email" name="email" required /></label>
+    <label>Password<input type="password" name="password" required /></label>
+    <label>Confirm Password<input type="password" name="confirm_password" required /></label>
+    <button type="submit" class="btn">Register</button>
   </form>
-  <p class="todo">TODO: 完成邮箱验证、密码强度检查和重复用户提示。</p>
 </section>
 {% endblock %}

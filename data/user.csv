@@ -1,4 +1,0 @@
-user_id,username,password_hash,email,is_admin
-1,admin,$2b$12$demo.admin.hash,admin@familygraph.local,true
-2,alice,$2b$12$demo.alice.hash,alice@familygraph.local,false
-3,bob,$2b$12$demo.bob.hash,bob@familygraph.local,false

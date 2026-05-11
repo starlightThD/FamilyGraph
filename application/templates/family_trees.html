@@ -1,98 +1,136 @@
 {% extends 'base.html' %}
 
-{% block title %}族谱与成员管理{% endblock %}
+{% block title %}Family Trees{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Family Data</p>
+    <h1>Family Trees and Members</h1>
+    <p class="page-subtitle">Manage family trees, members, and collaboration, with quick access to tree preview and relationship search.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('tree_preview') }}">Tree Preview</a>
+    <a class="btn" href="{{ url_for('queries') }}">Relationship Search</a>
+  </div>
+</div>
+{% endblock %}
 
 {% block content %}
-<h1>族谱与成员管理</h1>
 {% if message %}
-<section class="panel">
-  <p>{{ message }}</p>
-</section>
+<div class="alert">{{ message }}</div>
 {% endif %}
+
 <section class="panel">
-  <h2>公共可见族谱</h2>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>族谱ID</th>
-        <th>族谱名称</th>
-        <th>身份</th>
-        <th>操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for tree in trees %}
-      <tr>
-        <td>{{ tree.id }}</td>
-        <td>{{ tree.name }}</td>
-        <td>{{ tree.role }}</td>
-        <td>
-          {% if can_edit %}
-          <button class="small">编辑</button>
-          <button class="small warn">删除</button>
-          {% else %}
-          <span>仅管理员可编辑</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <p class="todo">TODO: 后端接口应允许游客读取（GET），并仅允许管理员执行写操作（POST/PUT/DELETE）。</p>
+  <div class="panel-header">
+    <div>
+      <h2>Public Family Trees</h2>
+      <p class="panel-subtitle">Visible family trees. Admins can edit or delete.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Tree ID</th>
+          <th>Tree Name</th>
+          <th>Role</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tree in trees %}
+        <tr>
+          <td>{{ tree.id }}</td>
+          <td>{{ tree.name }}</td>
+          <td><span class="badge">{{ tree.role }}</span></td>
+          <td class="table-actions">
+            {% if can_edit %}
+            <button class="btn ghost small">Edit</button>
+            <button class="btn warn small">Delete</button>
+            {% else %}
+            <span class="muted">Admins only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="todo">TODO: Allow guest read (GET) and restrict write access to admins (POST/PUT/DELETE).</p>
 </section>
 
 {% if can_edit %}
-<section class="panel two-col">
-  <div>
-    <h2>新增/编辑族谱</h2>
+<section class="grid-two">
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Create or Edit Family Tree</h2>
+        <p class="panel-subtitle">Create a new tree or update an existing entry.</p>
+      </div>
+    </div>
     <form class="form" method="post">
-      <label>族谱名称<input type="text" name="tree_name" required /></label>
-      <label>姓氏<input type="text" name="surname" placeholder="例如：张" /></label>
-      <label>创建者用户ID<input type="number" name="creator_id" value="1" min="1" /></label>
-      <button type="submit">保存族谱</button>
+      <label>Tree Name<input type="text" name="tree_name" required /></label>
+      <label>Surname<input type="text" name="surname" placeholder="e.g., Zhang" /></label>
+      <button type="submit" class="btn">Save Tree</button>
     </form>
   </div>
 
-  <div>
-    <h2>邀请协作者</h2>
-    <form class="form" data-todo="TODO: 邀请接口未接入（POST /api/family-trees/{id}/invites）">
-      <label>族谱ID<input type="number" name="tree_id" required /></label>
-      <label>受邀用户邮箱<input type="email" name="invitee_email" required /></label>
-      <button type="submit">发送邀请</button>
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Invite Collaborators</h2>
+        <p class="panel-subtitle">Invite others to help maintain the tree.</p>
+      </div>
+    </div>
+    <form class="form" data-todo="TODO: Invite API not wired (POST /api/family-trees/{id}/invites).">
+      <label>Tree ID<input type="number" name="tree_id" required /></label>
+      <label>Invitee Email<input type="email" name="invitee_email" required /></label>
+      <button type="submit" class="btn">Send Invite</button>
     </form>
   </div>
 </section>
 {% else %}
 <section class="panel">
-  <h2>写操作入口已隐藏</h2>
-  <p>当前为游客模式，可浏览但不可修改。请使用管理员身份登录后再进行新增、编辑、删除。</p>
+  <div class="panel-header">
+    <div>
+      <h2>Write Access Hidden</h2>
+      <p class="panel-subtitle">Guest mode allows browsing only.</p>
+    </div>
+  </div>
+  <p>Log in as an admin to create, edit, or delete.</p>
 </section>
 {% endif %}
 
 <section class="panel">
-  <h2>成员管理与模糊查找</h2>
-  <form class="form inline" data-todo="TODO: 成员模糊查找接口未接入（GET /api/members?name_like=关键词）">
-    <label>姓名关键词<input type="text" name="keyword" placeholder="例如：张文" /></label>
-    <button type="submit">查找成员</button>
+  <div class="panel-header">
+    <div>
+      <h2>Member Management and Search</h2>
+      <p class="panel-subtitle">Search by name keyword and maintain member details below.</p>
+    </div>
+  </div>
+  <form class="form inline search-bar" data-todo="TODO: Member search API not wired (GET /api/members?name_like=keyword).">
+    <label>Name Keyword<input type="text" name="keyword" placeholder="e.g., Zhang Wen" /></label>
+    <button type="submit" class="btn">Search Members</button>
   </form>
 
   {% if can_edit %}
-  <form class="form" data-todo="TODO: 成员 CRUD 接口未接入（POST/PUT/DELETE /api/members）">
-    <label>成员姓名<input type="text" name="member_name" required /></label>
-    <label>性别
+  <form class="form" data-todo="TODO: Member CRUD API not wired (POST/PUT/DELETE /api/members).">
+    <label>Member Name<input type="text" name="member_name" required /></label>
+    <label>Gender
       <select name="gender">
-        <option value="male">男</option>
-        <option value="female">女</option>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
       </select>
     </label>
-    <label>父亲ID<input type="number" name="father_id" /></label>
-    <label>母亲ID<input type="number" name="mother_id" /></label>
-    <button type="submit">新增成员</button>
+    <label>Father ID<input type="number" name="father_id" /></label>
+    <label>Mother ID<input type="number" name="mother_id" /></label>
+    <button type="submit" class="btn">Add Member</button>
   </form>
   {% else %}
-  <p>游客仅可查询成员，新增/修改/删除成员仅管理员可用。</p>
+  <p>Guests can search members. Create, update, and delete are admin-only.</p>
   {% endif %}
 
-  <div id="search-result" class="result-box">成员搜索结果将显示在这里。</div>
+  <div id="search-result" class="result-box">Search results will appear here.</div>
 </section>
 {% endblock %}
