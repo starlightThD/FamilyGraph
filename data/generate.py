@@ -43,6 +43,7 @@ def build_people_and_relationships(seed: int, min_gen: int, max_gen: int):
     trees = []
     people = []
     rel_set = set()
+    spouse_of = {}
 
     person_id = 1
     surname_to_tree = {}
@@ -121,11 +122,23 @@ def build_people_and_relationships(seed: int, min_gen: int, max_gen: int):
                         continue
                     candidate_wives.extend(female_by_tree_gen.get((other_tid, gen_index - 1), []))
 
-                wife_pid = None
-                if candidate_wives:
-                    wife_pid = rng.choice(candidate_wives)
-                    spouse_pair = tuple(sorted((father_pid, wife_pid)))
-                    rel_set.add((spouse_pair[0], spouse_pair[1], "spouse"))
+                wife_pid = spouse_of.get(father_pid)
+                if wife_pid is None:
+                    available_wives = [wid for wid in candidate_wives if wid not in spouse_of]
+                    if available_wives:
+                        # 防御性校验：婚配必须异性
+                        opposite_gender_wives = [
+                            wid for wid in available_wives if people[wid - 1]["gender"] == "female"
+                        ]
+                        if not opposite_gender_wives:
+                            wife_pid = None
+                        else:
+                            wife_pid = rng.choice(opposite_gender_wives)
+                    if wife_pid is not None:
+                        spouse_pair = tuple(sorted((father_pid, wife_pid)))
+                        rel_set.add((spouse_pair[0], spouse_pair[1], "spouse"))
+                        spouse_of[father_pid] = wife_pid
+                        spouse_of[wife_pid] = father_pid
 
                 # 每个父系家庭生成 3~6 个子女，归入父亲家谱并同姓
                 child_count = rng.randint(3, 6)

@@ -24,11 +24,26 @@
       <p class="panel-subtitle">Compare each member with the average birth year in their generation.</p>
     </div>
   </div>
-  <form class="form inline" data-todo="TODO: Implement early birth-year query.">
-    <label>Family Tree ID<input type="number" name="tree_id" required /></label>
-    <label>Generation Depth (Optional)<input type="number" name="generation_depth" min="0" /></label>
+  <form class="form inline" method="get" action="{{ url_for('task_5') }}">
+    <label>Family Tree ID<input type="number" name="tree_id" value="{{ request.args.get('tree_id', '') }}" required /></label>
+    <label>Generation Depth (Optional)<input type="number" name="generation_depth" min="0" value="{{ request.args.get('generation_depth', '') }}" /></label>
     <button type="submit" class="btn">Run Query</button>
   </form>
-  <div class="result-box">Results will appear here.</div>
+  {% if message %}
+  <div class="alert">{{ message }}</div>
+  {% endif %}
+  <div class="result-box">
+    {% if query_ran %}
+    {% if early_births %}
+    {% for row in early_births %}
+    <div>{{ row.name }} (ID {{ row.id }}) - Birth {{ row.birth_year }}, Gen Avg {{ row.avg_birth_year }}</div>
+    {% endfor %}
+    {% else %}
+    <div>No early-birth records returned.</div>
+    {% endif %}
+    {% else %}
+    <div>Results will appear here.</div>
+    {% endif %}
+  </div>
 </section>
 {% endblock %}

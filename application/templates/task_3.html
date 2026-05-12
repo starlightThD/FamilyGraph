@@ -24,10 +24,30 @@
       <p class="panel-subtitle">Depth starts from the earliest generation in the tree.</p>
     </div>
   </div>
-  <form class="form inline" data-todo="TODO: Implement longest-lived generation query.">
-    <label>Family Tree ID<input type="number" name="tree_id" required /></label>
+  <form class="form inline" method="get" action="{{ url_for('task_3') }}">
+    <label>Family Tree ID<input type="number" name="tree_id" value="{{ request.args.get('tree_id', '') }}" required /></label>
     <button type="submit" class="btn">Run Query</button>
   </form>
-  <div class="result-box">Results will appear here.</div>
+  {% if message %}
+  <div class="alert">{{ message }}</div>
+  {% endif %}
+  <div class="result-box">
+    {% if query_ran %}
+    {% if summary and summary.best_depth is not none %}
+    <div>Best Depth: {{ summary.best_depth }}</div>
+    <div>Avg Lifespan: {{ summary.avg_lifespan }}</div>
+    <div>Members Counted: {{ summary.member_count }}</div>
+    {% else %}
+    <div>No lifespan summary returned.</div>
+    {% endif %}
+    {% if generation_stats %}
+    {% for row in generation_stats %}
+    <div>Depth {{ row.depth }} - Avg Lifespan {{ row.avg_lifespan }} ({{ row.member_count }} members)</div>
+    {% endfor %}
+    {% endif %}
+    {% else %}
+    <div>Results will appear here.</div>
+    {% endif %}
+  </div>
 </section>
 {% endblock %}

@@ -41,6 +41,35 @@ def get_connection():
     )
 
 
+def query_task_2_ancestors(person_id, max_depth):
+    # TODO: Purpose: fetch all ancestors of person_id, optionally limited by max_depth.
+    # TODO: Flow: validate inputs -> execute SQL (closure table or recursive CTE) -> map rows -> return list.
+    return []
+
+
+def query_task_3_longest_lived_generation(tree_id):
+    # TODO: Purpose: find the generation depth with the highest average lifespan in a tree.
+    # TODO: Flow: compute per-depth avg lifespan -> pick max -> return summary and per-depth stats.
+    summary = {
+        "best_depth": None,
+        "avg_lifespan": None,
+        "member_count": None,
+    }
+    return summary, []
+
+
+def query_task_4_filter_members(filters):
+    # TODO: Purpose: filter members by age, marital status, children, and living status.
+    # TODO: Flow: build SQL with optional filters -> execute -> return list of member dicts.
+    return []
+
+
+def query_task_5_early_births(tree_id, generation_depth):
+    # TODO: Purpose: find members born earlier than their generation average birth year.
+    # TODO: Flow: compute generation averages -> compare each member -> return qualifying rows.
+    return []
+
+
 @app.context_processor
 def inject_access_context():
     user = get_current_user()
@@ -349,34 +378,33 @@ def task_1():
                         )
                         spouses = cursor.fetchall()
 
-                        parent_ids = [parent[0] for parent in parents]
-                        if parent_ids:
+                        cursor.execute(
+                            """
+                            SELECT p.person_id
+                            FROM "Relationship" r
+                            JOIN "Person" p ON p.person_id = r.person1_id
+                            WHERE r.rel_type = 'parent'
+                              AND r.person2_id = %s
+                              AND p.gender = 'male'
+                            ORDER BY p.person_id
+                            LIMIT 1
+                            """,
+                            (person_id,),
+                        )
+                        father_row = cursor.fetchone()
+                        if father_row:
+                            father_id = father_row[0]
                             cursor.execute(
                                 """
-                                WITH center_surname AS (
-                                    SELECT ft0.surname AS surname
-                                    FROM "Person" p0
-                                    JOIN "FamilyTree" ft0 ON ft0.tree_id = p0.tree_id
-                                    WHERE p0.person_id = %s
-                                )
-                                SELECT sibling_id, sibling_name
-                                FROM (
-                                    SELECT
-                                        p.person_id AS sibling_id,
-                                        p.name AS sibling_name,
-                                        CASE WHEN ft.surname = (SELECT surname FROM center_surname)
-                                             THEN 0 ELSE 1 END AS surname_rank
-                                    FROM "Relationship" r
-                                    JOIN "Person" p ON p.person_id = r.person2_id
-                                    JOIN "FamilyTree" ft ON ft.tree_id = p.tree_id
-                                    WHERE r.rel_type = 'parent'
-                                      AND r.person1_id = ANY(%s)
-                                      AND p.person_id <> %s
-                                    GROUP BY p.person_id, p.name, ft.surname
-                                ) s
-                                ORDER BY s.surname_rank, s.sibling_id
+                                SELECT p.person_id, p.name
+                                FROM "Relationship" r
+                                JOIN "Person" p ON p.person_id = r.person2_id
+                                WHERE r.rel_type = 'parent'
+                                  AND r.person1_id = %s
+                                  AND p.person_id <> %s
+                                ORDER BY p.person_id
                                 """,
-                                (person_id, parent_ids, person_id),
+                                (father_id, person_id),
                             )
                             siblings = cursor.fetchall()
 
@@ -413,22 +441,153 @@ def task_1():
 
 @app.route('/tasks/2')
 def task_2():
-    return render_template('task_2.html')
+    message = None
+    query_ran = False
+    ancestors = []
+    person_id = request.args.get('person_id', '').strip()
+    max_depth = request.args.get('max_depth', '').strip()
+
+    if person_id:
+        query_ran = True
+        try:
+            person_id = int(person_id)
+        except ValueError:
+            message = "Person ID must be a number."
+        else:
+            if max_depth:
+                try:
+                    max_depth = int(max_depth)
+                    if max_depth < 1:
+                        raise ValueError
+                except ValueError:
+                    message = "Max depth must be a positive number."
+            else:
+                max_depth = None
+        if message is None:
+            ancestors = query_task_2_ancestors(person_id, max_depth)
+
+    return render_template(
+        'task_2.html',
+        message=message,
+        query_ran=query_ran,
+        ancestors=ancestors,
+    )
 
 
 @app.route('/tasks/3')
 def task_3():
-    return render_template('task_3.html')
+    message = None
+    query_ran = False
+    summary = None
+    generation_stats = []
+    tree_id = request.args.get('tree_id', '').strip()
+
+    if tree_id:
+        query_ran = True
+        try:
+            tree_id = int(tree_id)
+        except ValueError:
+            message = "Family tree ID must be a number."
+        else:
+            summary, generation_stats = query_task_3_longest_lived_generation(tree_id)
+
+    return render_template(
+        'task_3.html',
+        message=message,
+        query_ran=query_ran,
+        summary=summary,
+        generation_stats=generation_stats,
+    )
 
 
 @app.route('/tasks/4')
 def task_4():
-    return render_template('task_4.html')
+    message = None
+    query_ran = False
+    members = []
+    tree_id = request.args.get('tree_id', '').strip()
+    min_age = request.args.get('min_age', '').strip()
+    max_age = request.args.get('max_age', '').strip()
+    married = request.args.get('married', 'any')
+    has_children = request.args.get('has_children', 'any')
+    alive = request.args.get('alive', 'any')
+
+    if tree_id:
+        query_ran = True
+        try:
+            tree_id = int(tree_id)
+        except ValueError:
+            message = "Family tree ID must be a number."
+
+        if message is None and min_age:
+            try:
+                min_age = int(min_age)
+                if min_age < 0:
+                    raise ValueError
+            except ValueError:
+                message = "Min age must be a non-negative number."
+
+        if message is None and max_age:
+            try:
+                max_age = int(max_age)
+                if max_age < 0:
+                    raise ValueError
+            except ValueError:
+                message = "Max age must be a non-negative number."
+
+        if message is None:
+            filters = {
+                "tree_id": tree_id,
+                "min_age": min_age if min_age != '' else None,
+                "max_age": max_age if max_age != '' else None,
+                "married": married,
+                "has_children": has_children,
+                "alive": alive,
+            }
+            members = query_task_4_filter_members(filters)
+
+    return render_template(
+        'task_4.html',
+        message=message,
+        query_ran=query_ran,
+        members=members,
+    )
 
 
 @app.route('/tasks/5')
 def task_5():
-    return render_template('task_5.html')
+    message = None
+    query_ran = False
+    early_births = []
+    tree_id = request.args.get('tree_id', '').strip()
+    generation_depth = request.args.get('generation_depth', '').strip()
+
+    if tree_id:
+        query_ran = True
+        try:
+            tree_id = int(tree_id)
+        except ValueError:
+            message = "Family tree ID must be a number."
+        else:
+            if generation_depth:
+                try:
+                    generation_depth = int(generation_depth)
+                    if generation_depth < 0:
+                        raise ValueError
+                except ValueError:
+                    message = "Generation depth must be a non-negative number."
+            else:
+                generation_depth = None
+
+        if message is None:
+            early_births = query_task_5_early_births(tree_id, generation_depth)
+
+    return render_template(
+        'task_5.html',
+        message=message,
+        query_ran=query_ran,
+        early_births=early_births,
+    )
 
 
 if __name__ == '__main__':

@@ -24,37 +24,52 @@
       <p class="panel-subtitle">Set filters and return matching members from a selected tree.</p>
     </div>
   </div>
-  <form class="form" data-todo="TODO: Implement member filter query.">
-    <label>Family Tree ID<input type="number" name="tree_id" required /></label>
+  <form class="form" method="get" action="{{ url_for('task_4') }}">
+    <label>Family Tree ID<input type="number" name="tree_id" value="{{ request.args.get('tree_id', '') }}" required /></label>
     <div class="grid-two">
-      <label>Min Age<input type="number" name="min_age" min="0" /></label>
-      <label>Max Age<input type="number" name="max_age" min="0" /></label>
+      <label>Min Age<input type="number" name="min_age" min="0" value="{{ request.args.get('min_age', '') }}" /></label>
+      <label>Max Age<input type="number" name="max_age" min="0" value="{{ request.args.get('max_age', '') }}" /></label>
     </div>
     <div class="grid-two">
       <label>Married
         <select name="married">
-          <option value="any">Any</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
+          <option value="any" {% if request.args.get('married', 'any') == 'any' %}selected{% endif %}>Any</option>
+          <option value="yes" {% if request.args.get('married') == 'yes' %}selected{% endif %}>Yes</option>
+          <option value="no" {% if request.args.get('married') == 'no' %}selected{% endif %}>No</option>
         </select>
       </label>
       <label>Has Children
         <select name="has_children">
-          <option value="any">Any</option>
-          <option value="yes">Yes</option>
-          <option value="no">No</option>
+          <option value="any" {% if request.args.get('has_children', 'any') == 'any' %}selected{% endif %}>Any</option>
+          <option value="yes" {% if request.args.get('has_children') == 'yes' %}selected{% endif %}>Yes</option>
+          <option value="no" {% if request.args.get('has_children') == 'no' %}selected{% endif %}>No</option>
         </select>
       </label>
     </div>
     <label>Living Status
       <select name="alive">
-        <option value="any">Any</option>
-        <option value="yes">Alive</option>
-        <option value="no">Deceased</option>
+        <option value="any" {% if request.args.get('alive', 'any') == 'any' %}selected{% endif %}>Any</option>
+        <option value="yes" {% if request.args.get('alive') == 'yes' %}selected{% endif %}>Alive</option>
+        <option value="no" {% if request.args.get('alive') == 'no' %}selected{% endif %}>Deceased</option>
       </select>
     </label>
     <button type="submit" class="btn">Run Query</button>
   </form>
-  <div class="result-box">Results will appear here.</div>
+  {% if message %}
+  <div class="alert">{{ message }}</div>
+  {% endif %}
+  <div class="result-box">
+    {% if query_ran %}
+    {% if members %}
+    {% for member in members %}
+    <div>{{ member.name }} (ID {{ member.id }})</div>
+    {% endfor %}
+    {% else %}
+    <div>No members matched the filters.</div>
+    {% endif %}
+    {% else %}
+    <div>Results will appear here.</div>
+    {% endif %}
+  </div>
 </section>
 {% endblock %}
