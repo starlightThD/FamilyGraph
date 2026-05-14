@@ -109,7 +109,7 @@ a {
 }
 
 .layout {
-  max-width: 1200px;
+  max-width: min(1700px, 97vw);
   margin: 0 auto;
   padding: 1.5rem 1.5rem 3rem;
   display: grid;
@@ -496,6 +496,334 @@ button.small {
   border: 1px solid rgba(14, 124, 134, 0.25);
 }
 
+.tree-lr-view {
+  overflow: auto;
+  padding: 0.6rem 0.3rem;
+}
+
+.tree-canvas-shell {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.tree-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.tree-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.46rem;
+}
+
+.tree-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.68rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.tree-canvas-viewport {
+  width: 100%;
+  min-height: 60vh;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(14, 124, 134, 0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(14, 124, 134, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at top left, #fff, #f6fbfa 72%);
+  background-size: 22px 22px, 22px 22px, auto;
+  overflow: hidden;
+}
+
+.tree-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.tree-canvas.panning {
+  cursor: grabbing;
+}
+
+.tree-edge {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.child-edge {
+  stroke: #7aac84;
+}
+
+.spouse-edge {
+  stroke: #d59393;
+  stroke-dasharray: 5 4;
+}
+
+.tree-card {
+  stroke-width: 1.1;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.tree-card-internal {
+  fill: #e6f7df;
+  stroke: #8ec47a;
+}
+
+.tree-card-spouse {
+  fill: #fde7e7;
+  stroke: #e7adad;
+}
+
+.tree-card-expandable:hover {
+  filter: brightness(0.985);
+}
+
+.tree-card-label {
+  fill: #1f2a33;
+  font-size: 12.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.tree-card-meta {
+  fill: #5c6a74;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.tree-toggle-dot {
+  fill: #fff;
+  stroke: #5f7280;
+  stroke-width: 1;
+}
+
+.tree-toggle-symbol {
+  fill: #324652;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.tree-loading-dot {
+  fill: #fef3c7;
+  stroke: #d97706;
+  stroke-width: 1;
+}
+
+.tree-hint {
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+
+.ancestor-canvas-shell {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.ancestor-canvas-viewport {
+  width: 100%;
+  min-height: 64vh;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    linear-gradient(90deg, rgba(14, 124, 134, 0.04) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(14, 124, 134, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at top left, #fff, #f7fafc 72%);
+  background-size: 22px 22px, 22px 22px, auto;
+  overflow: hidden;
+}
+
+.ancestor-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.ancestor-canvas.panning {
+  cursor: grabbing;
+}
+
+.ancestor-edge {
+  fill: none;
+  stroke: #7ca4b8;
+  stroke-width: 1.5;
+}
+
+.ancestor-card {
+  stroke-width: 1.1;
+}
+
+.ancestor-root-card {
+  fill: #e8f6f5;
+  stroke: #6cb0ab;
+}
+
+.ancestor-parent-card {
+  fill: #edf3fb;
+  stroke: #9cb2d8;
+}
+
+.ancestor-card-label {
+  fill: #1f2a33;
+  font-size: 12.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.tree-lr-node-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  margin: 0.5rem 0;
+}
+
+.tree-node {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0.35rem 0.62rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.internal-node {
+  background: #e6f7df;
+  border-color: #9ccd8e;
+  color: #235235;
+}
+
+.spouse-node {
+  background: #fde7e7;
+  border-color: #efb0b0;
+  color: #7f2c2c;
+  cursor: default;
+}
+
+.tree-node-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tree-node-error {
+  max-width: 260px;
+  padding: 0.3rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(194, 65, 12, 0.35);
+  background: #fff3e5;
+  color: #8a3410;
+  font-size: 0.8rem;
+}
+
+.tree-lr-branch {
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
+  padding-top: 0.78rem;
+  justify-items: center;
+}
+
+.tree-lr-branch::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 0.78rem;
+  border-left: 1px dashed #95a8b3;
+  transform: translateX(-50%);
+}
+
+.tree-group {
+  position: relative;
+  display: grid;
+  gap: 0.36rem;
+  justify-items: center;
+}
+
+.tree-group-title {
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+
+.spouse-title {
+  color: #9a3f3f;
+}
+
+.child-title {
+  color: #2f6e3f;
+}
+
+.tree-spouse-row,
+.tree-child-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  padding-top: 0.58rem;
+}
+
+.tree-spouse-row::before,
+.tree-child-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  border-top: 1px solid #95a8b3;
+}
+
+.tree-spouse-row::before {
+  border-top-color: #e0a2a2;
+}
+
+.tree-child-row::before {
+  border-top-color: #9fce8f;
+}
+
+.tree-group-item {
+  position: relative;
+  padding-top: 0.64rem;
+}
+
+.tree-group-item::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 0.64rem;
+  border-left: 1px solid #95a8b3;
+  transform: translateX(-50%);
+}
+
+.spouse-item::before {
+  border-left-color: #e0a2a2;
+}
+
+.child-item::before {
+  border-left-color: #9fce8f;
+}
+
 .bullet-list {
   margin: 0;
   padding-left: 1.2rem;
@@ -533,5 +861,19 @@ button.small {
 
   .page-header {
     align-items: flex-start;
+  }
+
+  .tree-spouse-row::before,
+  .tree-child-row::before {
+    left: 20%;
+    right: 20%;
+  }
+
+  .tree-canvas-viewport {
+    min-height: 66vh;
+  }
+
+  .ancestor-canvas-viewport {
+    min-height: 68vh;
   }
 }

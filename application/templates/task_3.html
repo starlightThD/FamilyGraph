@@ -25,7 +25,16 @@
     </div>
   </div>
   <form class="form inline" method="get" action="{{ url_for('task_3') }}">
-    <label>Family Tree ID<input type="number" name="tree_id" value="{{ request.args.get('tree_id', '') }}" required /></label>
+    <label>Family Tree
+      <select name="tree_id" required>
+        <option value="">Select a tree...</option>
+        {% for tree in tree_options %}
+        <option value="{{ tree.id }}" {% if request.args.get('tree_id')|int(0) == tree.id %}selected{% endif %}>
+          {{ tree.id }} - {{ tree.name }}{% if tree.surname %} ({{ tree.surname }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
     <button type="submit" class="btn">Run Query</button>
   </form>
   {% if message %}

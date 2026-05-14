@@ -1,4 +1,5 @@
 import os
+import csv
 from pathlib import Path
 
 import psycopg2
@@ -9,10 +10,9 @@ TABLE_LOADS = [
     ("FamilyTree", "family_tree.csv"),
     ("Person", "person.csv"),
     ("Relationship", "relationship.csv"),
-    ("KinshipClosure", "kinship_closure.csv"),
 ]
 
-TRUNCATE_ORDER = ["Relationship", "KinshipClosure", "Person", "FamilyTree", "User"]
+TRUNCATE_ORDER = ["FamilyTreeInvite", "Relationship", "Person", "FamilyTree", "User"]
 
 
 def get_connection():
@@ -27,8 +27,14 @@ def get_connection():
 
 def load_table(cursor, table_name, csv_path):
     with csv_path.open("r", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        header = next(reader, None)
+        if not header:
+            raise ValueError(f"CSV has no header: {csv_path}")
+        quoted_columns = ", ".join(f'"{col}"' for col in header)
+        handle.seek(0)
         cursor.copy_expert(
-            f'COPY "{table_name}" FROM STDIN WITH (FORMAT csv, HEADER true)',
+            f'COPY "{table_name}" ({quoted_columns}) FROM STDIN WITH (FORMAT csv, HEADER true)',
             handle,
         )
 

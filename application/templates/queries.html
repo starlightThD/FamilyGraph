@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">Relationship Search</p>
     <h1>Ancestor and Relationship Search</h1>
-    <p class="page-subtitle">Enter member IDs to verify ancestor chains or relationship paths.</p>
+    <p class="page-subtitle">Query ancestor tree and relationship path by member IDs.</p>
   </div>
   <div class="page-actions">
     <a class="btn ghost" href="{{ url_for('tree_preview') }}">Tree Preview</a>
@@ -17,50 +17,87 @@
 {% endblock %}
 
 {% block content %}
-<section class="grid-two">
-  <div class="panel">
-    <div class="panel-header">
-      <div>
-        <h2>Ancestor Search</h2>
-        <p class="panel-subtitle">Trace an ancestor chain upward from a member.</p>
-      </div>
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Ancestor Search</h2>
+      <p class="panel-subtitle">Input member ID to render a readable ancestor graph with pan/zoom.</p>
     </div>
-    <form class="form" method="get">
-      <label>Member ID<input type="number" name="ancestor_member_id" required /></label>
-      <button type="submit" class="btn">Search Ancestors</button>
-    </form>
-    <div class="result-box">
-      {% if ancestor_result %}
-      {% for row in ancestor_result %}
-      <div>Ancestor ID={{ row[0] }}, Name={{ row[1] }}, Generation Depth={{ row[2] }}</div>
-      {% endfor %}
-      {% else %}
-      Ancestor results will appear here.
-      {% endif %}
-    </div>
+  </div>
+  <form class="form inline" method="get">
+    <label>Member ID<input type="number" name="ancestor_member_id" value="{{ request.args.get('ancestor_member_id', '') }}" min="0" required /></label>
+    <button type="submit" class="btn">Search Ancestors</button>
+  </form>
+
+  {% if ancestor_message %}
+  <div class="alert">{{ ancestor_message }}</div>
+  {% endif %}
+
+  <div class="result-box">
+    {% if ancestor_tree %}
+    <div id="ancestor-tree-canvas" class="ancestor-canvas-shell"></div>
+    <script id="ancestor-tree-data" type="application/json">{{ ancestor_tree | tojson }}</script>
+    {% else %}
+    Ancestor results will appear here.
+    {% endif %}
   </div>
 
-  <div class="panel">
-    <div class="panel-header">
-      <div>
-        <h2>Relationship Search</h2>
-        <p class="panel-subtitle">Find the relationship path between two members.</p>
-      </div>
-    </div>
-    <form class="form" method="get">
-      <label>Member A ID<input type="number" name="from_id" required /></label>
-      <label>Member B ID<input type="number" name="to_id" required /></label>
-      <button type="submit" class="btn">Search Relationship</button>
-    </form>
-    <div class="result-box">
-      {% if relationship_result %}
-      {% for row in relationship_result %}
-      <div>Direct Relationship: {{ row[0] }}</div>
-      {% endfor %}
-      {% else %}
-      If a relationship exists, the path will appear here.
-      {% endif %}
+  {% if ancestor_result %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Depth</th>
+          <th>Ancestor ID</th>
+          <th>Name</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in ancestor_result %}
+        <tr>
+          <td>{{ row.depth }}</td>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Relationship Search</h2>
+      <p class="panel-subtitle">Find relationship path between two members.</p>
     </div>
   </div>
+  <form class="form inline" method="get">
+    <label>Member A ID<input type="number" name="from_id" value="{{ request.args.get('from_id', '') }}" min="0" required /></label>
+    <label>Member B ID<input type="number" name="to_id" value="{{ request.args.get('to_id', '') }}" min="0" required /></label>
+    <label>Engine
+      <select name="relationship_engine">
+        <option value="sql" {% if relationship_engine != 'python' %}selected{% endif %}>SQL (recursive)</option>
+        <option value="python" {% if relationship_engine == 'python' %}selected{% endif %}>Python (BFS)</option>
+      </select>
+    </label>
+    <button type="submit" class="btn">Search Relationship</button>
+  </form>
+  <div class="result-box">
+    {% if relationship_message %}
+    <div>{{ relationship_message }}</div>
+    {% elif relationship_result %}
+    <div>Path Length: {{ relationship_result.depth }}</div>
+    <div>Path: {{ relationship_result.path_text }}</div>
+    {% else %}
+    If a relationship exists, the path will appear here.
+    {% endif %}
+  </div>
 </section>
+
+{% if ancestor_tree %}
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="{{ url_for('static', filename='js/ancestor_tree_canvas.js') }}"></script>
+{% endif %}
 {% endblock %}

@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">Family Data</p>
     <h1>Family Trees and Members</h1>
-    <p class="page-subtitle">Manage family trees, members, and collaboration, with quick access to tree preview and relationship search.</p>
+    <p class="page-subtitle">Manage trees, members, collaboration invites, and fuzzy member search in one place.</p>
   </div>
   <div class="page-actions">
     <a class="btn ghost" href="{{ url_for('tree_preview') }}">Tree Preview</a>
@@ -24,8 +24,11 @@
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Public Family Trees</h2>
-      <p class="panel-subtitle">Visible family trees. Admins can edit or delete.</p>
+      <h2>Visible Family Trees</h2>
+      <p class="panel-subtitle">Current scope: {{ scope_text or 'All trees' }}</p>
+      {% if viewer_role != 'admin' %}
+      <p class="muted">Access Mask: {{ access_mask_text }}</p>
+      {% endif %}
     </div>
   </div>
   <div class="table-wrap">
@@ -34,6 +37,7 @@
         <tr>
           <th>Tree ID</th>
           <th>Tree Name</th>
+          <th>Surname</th>
           <th>Role</th>
           <th>Actions</th>
         </tr>
@@ -43,13 +47,18 @@
         <tr>
           <td>{{ tree.id }}</td>
           <td>{{ tree.name }}</td>
+          <td>{{ tree.surname }}</td>
           <td><span class="badge">{{ tree.role }}</span></td>
           <td class="table-actions">
+            <a class="btn small" href="{{ url_for('export_family_tree', tree_id=tree.id) }}">Export</a>
+            <a class="btn ghost small" href="{{ url_for('tree_preview', tree_id=tree.id) }}">Preview</a>
             {% if can_edit %}
-            <button class="btn ghost small">Edit</button>
-            <button class="btn warn small">Delete</button>
-            {% else %}
-            <span class="muted">Admins only</span>
+            <a class="btn ghost small" href="{{ url_for('family_trees', edit_tree_id=tree.id) }}">Edit</a>
+            <form class="inline-form" method="post">
+              <input type="hidden" name="action" value="delete_tree" />
+              <input type="hidden" name="tree_id" value="{{ tree.id }}" />
+              <button type="submit" class="btn warn small">Delete</button>
+            </form>
             {% endif %}
           </td>
         </tr>
@@ -57,7 +66,6 @@
       </tbody>
     </table>
   </div>
-  <p class="todo">TODO: Allow guest read (GET) and restrict write access to admins (POST/PUT/DELETE).</p>
 </section>
 
 {% if can_edit %}
@@ -65,13 +73,26 @@
   <div class="panel">
     <div class="panel-header">
       <div>
-        <h2>Create or Edit Family Tree</h2>
-        <p class="panel-subtitle">Create a new tree or update an existing entry.</p>
+        <h2>Create or Update Family Tree</h2>
+        <p class="panel-subtitle">Leave Tree ID empty to create; fill Tree ID to update.</p>
       </div>
     </div>
     <form class="form" method="post">
-      <label>Tree Name<input type="text" name="tree_name" required /></label>
-      <label>Surname<input type="text" name="surname" placeholder="e.g., Zhang" /></label>
+      <input type="hidden" name="action" value="save_tree" />
+      <label>Tree ID (for update)
+        <select name="tree_id">
+          <option value="">-- Create New Tree --</option>
+          {% for tree in trees %}
+          <option value="{{ tree.id }}" {% if edit_tree and edit_tree.id == tree.id %}selected{% endif %}>ID {{ tree.id }}: {{ tree.name }} ({{ tree.surname }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Tree Name
+        <input type="text" name="tree_name" value="{{ edit_tree.name if edit_tree else '' }}" required />
+      </label>
+      <label>Surname
+        <input type="text" name="surname" value="{{ edit_tree.surname if edit_tree else '' }}" placeholder="e.g., 赵" />
+      </label>
       <button type="submit" class="btn">Save Tree</button>
     </form>
   </div>
@@ -79,58 +100,179 @@
   <div class="panel">
     <div class="panel-header">
       <div>
-        <h2>Invite Collaborators</h2>
-        <p class="panel-subtitle">Invite others to help maintain the tree.</p>
+        <h2>Invite Collaborator</h2>
+        <p class="panel-subtitle">Invite by email; existing users are accepted immediately.</p>
       </div>
     </div>
-    <form class="form" data-todo="TODO: Invite API not wired (POST /api/family-trees/{id}/invites).">
-      <label>Tree ID<input type="number" name="tree_id" required /></label>
+    <form class="form" method="post">
+      <input type="hidden" name="action" value="invite_collaborator" />
+      <label>Tree ID
+        <select name="tree_id" required>
+          <option value="">-- Select Tree --</option>
+          {% for tree in trees %}
+          <option value="{{ tree.id }}">ID {{ tree.id }}: {{ tree.name }} ({{ tree.surname }})</option>
+          {% endfor %}
+        </select>
+      </label>
       <label>Invitee Email<input type="email" name="invitee_email" required /></label>
       <button type="submit" class="btn">Send Invite</button>
     </form>
   </div>
 </section>
-{% else %}
+
+{% if viewer_role == 'admin' %}
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Write Access Hidden</h2>
-      <p class="panel-subtitle">Guest mode allows browsing only.</p>
+      <h2>Recent Invitations</h2>
+      <p class="panel-subtitle">Latest invite activity across trees.</p>
     </div>
   </div>
-  <p>Log in as an admin to create, edit, or delete.</p>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Invite ID</th>
+          <th>Tree ID</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th>Invited At</th>
+          <th>Responded At</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invite_rows %}
+        <tr>
+          <td>{{ inv[0] }}</td>
+          <td>{{ inv[1] }}</td>
+          <td>{{ inv[2] }}</td>
+          <td>{{ inv[3] }}</td>
+          <td>{{ inv[4] }}</td>
+          <td>{{ inv[5] or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
+{% endif %}
 {% endif %}
 
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Member Management and Search</h2>
-      <p class="panel-subtitle">Search by name keyword and maintain member details below.</p>
+      <h2>Member Search (Fuzzy Name)</h2>
+      <p class="panel-subtitle">Search members by partial name (ILIKE).</p>
     </div>
   </div>
-  <form class="form inline search-bar" data-todo="TODO: Member search API not wired (GET /api/members?name_like=keyword).">
-    <label>Name Keyword<input type="text" name="keyword" placeholder="e.g., Zhang Wen" /></label>
-    <button type="submit" class="btn">Search Members</button>
-  </form>
-
-  {% if can_edit %}
-  <form class="form" data-todo="TODO: Member CRUD API not wired (POST/PUT/DELETE /api/members).">
-    <label>Member Name<input type="text" name="member_name" required /></label>
-    <label>Gender
-      <select name="gender">
-        <option value="male">Male</option>
-        <option value="female">Female</option>
+  <form class="form inline search-bar" method="get">
+    <label>Tree ID (optional)
+      <select name="search_tree_id">
+        <option value="">-- All Trees --</option>
+        {% for tree in trees %}
+        <option value="{{ tree.id }}" {% if request.args.get('search_tree_id')|int(0) == tree.id %}selected{% endif %}>ID {{ tree.id }}: {{ tree.name }}</option>
+        {% endfor %}
       </select>
     </label>
-    <label>Father ID<input type="number" name="father_id" /></label>
-    <label>Mother ID<input type="number" name="mother_id" /></label>
-    <button type="submit" class="btn">Add Member</button>
+    <label>Name Keyword<input type="text" name="keyword" value="{{ request.args.get('keyword', '') }}" placeholder="e.g., 德 or 张文" /></label>
+    <button type="submit" class="btn">Search Members</button>
   </form>
-  {% else %}
-  <p>Guests can search members. Create, update, and delete are admin-only.</p>
-  {% endif %}
-
-  <div id="search-result" class="result-box">Search results will appear here.</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Member ID</th>
+          <th>Name</th>
+          <th>Gender</th>
+          <th>Tree</th>
+          <th>Birth</th>
+          <th>Generation</th>
+          <th>Death</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in member_results %}
+        <tr>
+          <td>{{ row[0] }}</td>
+          <td>{{ row[1] }}</td>
+          <td>{{ row[2] }}</td>
+          <td>{{ row[6] }} - {{ row[7] }}</td>
+          <td>{{ row[3] or '-' }}</td>
+          <td>{{ row[4] }}</td>
+          <td>{{ row[5] or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
+
+{% if can_edit %}
+<section class="grid-two">
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Create Member</h2>
+        <p class="panel-subtitle">Create member and optionally connect parent/spouse relationships.</p>
+      </div>
+    </div>
+    <form class="form" method="post">
+      <input type="hidden" name="action" value="create_member" />
+      <label>Tree ID
+        <select name="member_tree_id" required>
+          <option value="">-- Select Tree --</option>
+          {% for tree in trees %}
+          <option value="{{ tree.id }}">ID {{ tree.id }}: {{ tree.name }} ({{ tree.surname }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Member Name<input type="text" name="member_name" required /></label>
+      <label>Gender
+        <select name="gender" required>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Birth Date<input type="date" name="birth_date" /></label>
+      <label>Generation<input type="number" name="generation" min="1" required /></label>
+      <label>Death Date<input type="date" name="death_date" /></label>
+      <label>Father ID<input type="number" name="father_id" min="0" /></label>
+      <label>Mother ID<input type="number" name="mother_id" min="0" /></label>
+      <label>Spouse ID<input type="number" name="spouse_id" min="0" /></label>
+      <button type="submit" class="btn">Add Member</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>Update or Delete Member</h2>
+        <p class="panel-subtitle">Update basic profile or delete by member ID.</p>
+      </div>
+    </div>
+    <form class="form" method="post">
+      <input type="hidden" name="action" value="update_member" />
+      <label>Member ID<input type="number" name="edit_member_id" min="0" required /></label>
+      <label>Name<input type="text" name="edit_member_name" required /></label>
+      <label>Gender
+        <select name="edit_gender" required>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Birth Date<input type="date" name="edit_birth_date" /></label>
+      <label>Generation<input type="number" name="edit_generation" min="1" required /></label>
+      <label>Death Date<input type="date" name="edit_death_date" /></label>
+      <button type="submit" class="btn">Update Member</button>
+    </form>
+    <form class="form" method="post">
+      <input type="hidden" name="action" value="delete_member" />
+      <label>Member ID<input type="number" name="delete_member_id" min="0" required /></label>
+      <button type="submit" class="btn warn">Delete Member</button>
+    </form>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

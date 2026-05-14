@@ -1,26 +1,13 @@
 {% extends 'base.html' %}
 
-{% macro render_node(node) %}
-<li>
-  <span class="node">{{ node.name }}</span>
-  {% if node.children %}
-  <ul>
-    {% for child in node.children %}
-      {{ render_node(child) }}
-    {% endfor %}
-  </ul>
-  {% endif %}
-</li>
-{% endmacro %}
-
 {% block title %}Tree Preview{% endblock %}
 
 {% block page_header %}
 <div class="page-header">
   <div>
     <p class="eyebrow">Tree Preview</p>
-    <h1>Tree Preview</h1>
-    <p class="page-subtitle">Load a hierarchical view by tree and root node to verify structure quickly.</p>
+    <h1>Vue Family Tree</h1>
+    <p class="page-subtitle">Canvas-like relationship tree with lazy loading, drag-pan, wheel zoom, and click-to-expand nodes.</p>
   </div>
   <div class="page-actions">
     <a class="btn ghost" href="{{ url_for('family_trees') }}">Family Trees</a>
@@ -34,26 +21,48 @@
   <div class="panel-header">
     <div>
       <h2>Load Branch Tree</h2>
-      <p class="panel-subtitle">Use tree ID and root node ID to locate a branch.</p>
+      <p class="panel-subtitle">Select an accessible family tree. The UI auto-expands 2 levels by default.</p>
     </div>
   </div>
-  <form class="form inline" data-todo="TODO: Tree data API not wired (tree ID + root member ID).">
-    <label>Tree ID<input type="number" name="tree_id" required /></label>
-    <label>Root Member ID<input type="number" name="root_member_id" required /></label>
+  <form class="form inline" method="get" action="{{ url_for('tree_preview') }}">
+    <label>Family Tree
+      <select name="tree_id" required>
+        <option value="" {% if tree_id is none %}selected{% endif %}>Select a tree...</option>
+        {% for tree in tree_options %}
+        <option value="{{ tree.id }}" {% if tree_id == tree.id %}selected{% endif %}>
+          {{ tree.id }} - {{ tree.name }}{% if tree.surname %} ({{ tree.surname }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
     <button type="submit" class="btn">Load Branch</button>
   </form>
-  <p class="todo">TODO: This is a static sample. Replace with backend hierarchical data.</p>
+  {% if message %}
+  <div class="alert">{{ message }}</div>
+  {% endif %}
 </section>
 
 <section class="panel">
   <div class="panel-header">
     <div>
-      <h2>Sample Branch Tree</h2>
-      <p class="panel-subtitle">Nodes show the current branch hierarchy.</p>
+      <h2>Relationship Tree View</h2>
+      <p class="panel-subtitle">Click internal member nodes to expand/collapse. Large trees load descendants on demand.</p>
     </div>
   </div>
-  <ul class="tree">
-    {{ render_node(sample_branch) }}
-  </ul>
+  {% if query_ran and tree_id is not none and not message %}
+  <div
+    id="tree-vue-app"
+    data-tree-id="{{ tree_id }}"
+  ></div>
+  {% elif query_ran %}
+  <div class="result-box">No tree rendered due to the message above.</div>
+  {% else %}
+  <div class="result-box">Run a query to preview a branch tree.</div>
+  {% endif %}
 </section>
+
+{% if query_ran and tree_id is not none and not message %}
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="{{ url_for('static', filename='js/tree_preview_canvas.js') }}"></script>
+{% endif %}
 {% endblock %}

@@ -45,14 +45,6 @@ Relationship(
 
     PRIMARY KEY(person1_id, person2_id, rel_type)
 )
--- 性能优化表
-KinshipClosure(
-    ancestor_id,
-    descendant_id,
-    depth,
-
-    PRIMARY KEY (ancestor_id, descendant_id)
-)
 ```
 
 该设计满足 `BCNF` 范式
@@ -66,11 +58,17 @@ KinshipClosure(
 `python3 ./data/generate.py --seed 20260511 --gen 10 `
 
 == 一键启动 ==
-`./application/start.sh`
+`./start.sh`
+
+可选模式：
+
+- `./start.sh all`：初始化数据库（含可选 CSV 导入）并启动后端+前端页面（默认）
+- `./start.sh backend`：仅启动后端+前端页面（跳过数据库初始化）
+- `./start.sh db`：仅初始化数据库
 
 == 不更新数据库使用 ==
 `export LOAD_CSV=false`
-`./application/start.sh`
+`./start.sh`
 之后就可以直接进行前端的使用与验证。修改代码后也可以直接刷新前端运行。
 
 2. 创建数据库：

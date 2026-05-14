@@ -25,11 +25,30 @@
     </div>
   </div>
   <form class="form" method="get" action="{{ url_for('task_4') }}">
-    <label>Family Tree ID<input type="number" name="tree_id" value="{{ request.args.get('tree_id', '') }}" required /></label>
+    <label>Family Tree
+      <select name="tree_id" required>
+        <option value="">Select a tree...</option>
+        {% for tree in tree_options %}
+        <option value="{{ tree.id }}" {% if request.args.get('tree_id')|int(0) == tree.id %}selected{% endif %}>
+          {{ tree.id }} - {{ tree.name }}{% if tree.surname %} ({{ tree.surname }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
     <div class="grid-two">
       <label>Min Age<input type="number" name="min_age" min="0" value="{{ request.args.get('min_age', '') }}" /></label>
       <label>Max Age<input type="number" name="max_age" min="0" value="{{ request.args.get('max_age', '') }}" /></label>
     </div>
+    <script>
+      // JavaScript to ensure Min Age is not greater than Max Age
+      const minAgeInput = document.querySelector('input[name="min_age"]');
+      const maxAgeInput = document.querySelector('input[name="max_age"]');
+      minAgeInput.addEventListener('input', function() {
+        if (this.value && maxAgeInput.value && parseInt(this.value) > parseInt(maxAgeInput.value)) {
+          maxAgeInput.value = this.value;
+        }
+      });
+    </script>
     <div class="grid-two">
       <label>Married
         <select name="married">
@@ -44,15 +63,39 @@
           <option value="yes" {% if request.args.get('has_children') == 'yes' %}selected{% endif %}>Yes</option>
           <option value="no" {% if request.args.get('has_children') == 'no' %}selected{% endif %}>No</option>
         </select>
+        <script>
+          // JavaScript to disable "Has Children" if "Married" is set to "No"
+          document.querySelector('select[name="married"]').addEventListener('change', function() {
+            const hasChildrenSelect = document.querySelector('select[name="has_children"]');
+            if (this.value === 'no') {
+              hasChildrenSelect.value = 'any';
+              hasChildrenSelect.disabled = true;
+            } else {
+              hasChildrenSelect.disabled = false;
+            }
+          });
+          // Trigger change event on page load to set initial state
+          document.querySelector('select[name="married"]').dispatchEvent(new Event('change'));
+        </script>
       </label>
     </div>
-    <label>Living Status
-      <select name="alive">
-        <option value="any" {% if request.args.get('alive', 'any') == 'any' %}selected{% endif %}>Any</option>
-        <option value="yes" {% if request.args.get('alive') == 'yes' %}selected{% endif %}>Alive</option>
-        <option value="no" {% if request.args.get('alive') == 'no' %}selected{% endif %}>Deceased</option>
-      </select>
-    </label>
+    <div class="grid-two">
+      <label>Gender
+        <select name="gender">
+          <option value="any" {% if request.args.get('gender', 'any') == 'any' %}selected{% endif %}>Any</option>
+          <option value="male" {% if request.args.get('gender') == 'male' %}selected{% endif %}>Male</option>
+          <option value="female" {% if request.args.get('gender') == 'female' %}selected{% endif %}>Female</option>
+          <option value="other" {% if request.args.get('gender') == 'other' %}selected{% endif %}>Other</option>
+        </select>
+      </label>
+      <label>Living Status
+        <select name="alive">
+          <option value="any" {% if request.args.get('alive', 'any') == 'any' %}selected{% endif %}>Any</option>
+          <option value="yes" {% if request.args.get('alive') == 'yes' %}selected{% endif %}>Alive</option>
+          <option value="no" {% if request.args.get('alive') == 'no' %}selected{% endif %}>Deceased</option>
+        </select>
+      </label>
+    </div>
     <button type="submit" class="btn">Run Query</button>
   </form>
   {% if message %}

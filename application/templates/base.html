@@ -15,14 +15,21 @@
           <div class="brand-subtitle">Family Data Console</div>
         </div>
       </div>
-      <div class="topbar-actions">
-        <div class="role-indicator">
-          Role: {{ 'Admin' if viewer_role == 'admin' else 'Guest' }}
+        <div class="topbar-actions">
+          <div class="role-indicator">
+          Role:
+          {% if viewer_role == 'admin' %}
+          Admin
+          {% elif viewer_role == 'member' %}
+          Member
+          {% else %}
+          Guest
+          {% endif %}
           {% if current_user %}
           <span class="muted">({{ current_user.username }})</span>
           {% endif %}
+          </div>
         </div>
-      </div>
     </header>
 
     <div class="layout">

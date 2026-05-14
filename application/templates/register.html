@@ -19,9 +19,9 @@
   {% endif %}
   <form class="form" method="post">
     <label>Username<input type="text" name="username" required /></label>
+    <p class="muted">Note: the first character of username is used as surname for family-tree visibility.</p>
     <label>Email<input type="email" name="email" required /></label>
-    <label>Password<input type="password" name="password" required /></label>
-    <label>Confirm Password<input type="password" name="confirm_password" required /></label>
+    <label>Password (optional for now)<input type="password" name="password" /></label>
     <button type="submit" class="btn">Register</button>
   </form>
 </section>

@@ -19,13 +19,19 @@ BEGIN
 END
 $$;
 
+DROP TABLE IF EXISTS "KinshipClosure" CASCADE;
+
 CREATE TABLE IF NOT EXISTS "User" (
     user_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE,
-    is_admin BOOLEAN NOT NULL DEFAULT FALSE
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    tree_access_mask BIGINT NOT NULL DEFAULT 0
 );
+
+ALTER TABLE "User"
+ADD COLUMN IF NOT EXISTS tree_access_mask BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS "FamilyTree" (
     tree_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -44,11 +50,15 @@ CREATE TABLE IF NOT EXISTS "Person" (
     name VARCHAR(100) NOT NULL,
     gender gender_type NOT NULL,
     birth_date DATE,
+    generation INTEGER NOT NULL DEFAULT 1,
     death_date DATE,
     CONSTRAINT fk_person_tree
         FOREIGN KEY (tree_id) REFERENCES "FamilyTree"(tree_id)
         ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+ALTER TABLE "Person"
+ADD COLUMN IF NOT EXISTS generation INTEGER NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS "Relationship" (
     person1_id INTEGER NOT NULL,
@@ -63,15 +73,25 @@ CREATE TABLE IF NOT EXISTS "Relationship" (
         ON UPDATE CASCADE ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS "KinshipClosure" (
-    ancestor_id INTEGER NOT NULL,
-    descendant_id INTEGER NOT NULL,
-    depth INTEGER NOT NULL,
-    PRIMARY KEY (ancestor_id, descendant_id),
-    CONSTRAINT fk_closure_ancestor
-        FOREIGN KEY (ancestor_id) REFERENCES "Person"(person_id)
+CREATE TABLE IF NOT EXISTS "FamilyTreeInvite" (
+    invite_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tree_id INTEGER NOT NULL,
+    inviter_id INTEGER NOT NULL,
+    invitee_email VARCHAR(255) NOT NULL,
+    invitee_user_id INTEGER,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    invited_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP,
+    CONSTRAINT fk_invite_tree
+        FOREIGN KEY (tree_id) REFERENCES "FamilyTree"(tree_id)
         ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_closure_descendant
-        FOREIGN KEY (descendant_id) REFERENCES "Person"(person_id)
-        ON UPDATE CASCADE ON DELETE CASCADE
+    CONSTRAINT fk_invite_inviter
+        FOREIGN KEY (inviter_id) REFERENCES "User"(user_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_invite_user
+        FOREIGN KEY (invitee_user_id) REFERENCES "User"(user_id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT ck_invite_status
+        CHECK (status IN ('pending', 'accepted', 'revoked')),
+    CONSTRAINT uq_tree_invitee UNIQUE (tree_id, invitee_email)
 );

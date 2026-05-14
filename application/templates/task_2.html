@@ -6,8 +6,8 @@
 <div class="page-header">
   <div>
     <p class="eyebrow">Task 2</p>
-    <h1>All Ancestors</h1>
-    <p class="page-subtitle">Query all ancestors of a given person.</p>
+    <h1>Ancestor Tree Query</h1>
+    <p class="page-subtitle">Input a member ID and render ancestors in hierarchical form with pan/zoom.</p>
   </div>
   <div class="page-actions">
     <a class="btn ghost" href="{{ url_for('queries') }}">Relationship Search</a>
@@ -25,25 +25,73 @@
     </div>
   </div>
   <form class="form inline" method="get" action="{{ url_for('task_2') }}">
-    <label>Person ID<input type="number" name="person_id" value="{{ request.args.get('person_id', '') }}" required /></label>
+    <label>Person ID<input type="number" name="person_id" value="{{ request.args.get('person_id', '') }}" min="0" required /></label>
     <label>Max Depth (Optional)<input type="number" name="max_depth" min="1" value="{{ request.args.get('max_depth', '') }}" /></label>
     <button type="submit" class="btn">Run Query</button>
   </form>
   {% if message %}
   <div class="alert">{{ message }}</div>
   {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Ancestor Tree (Interactive)</h2>
+      <p class="panel-subtitle">Visual hierarchy with pan/zoom controls. Left node is the selected person; right side shows ancestors.</p>
+    </div>
+  </div>
   <div class="result-box">
-    {% if query_ran %}
-    {% if ancestors %}
-    {% for ancestor in ancestors %}
-    <div>{{ ancestor.name }} (ID {{ ancestor.id }}) - Depth {{ ancestor.depth }}</div>
-    {% endfor %}
+    {% if query_ran and ancestor_tree %}
+    <div id="ancestor-tree-canvas" class="ancestor-canvas-shell"></div>
+    <script id="ancestor-tree-data" type="application/json">{{ ancestor_tree | tojson }}</script>
+    {% elif query_ran %}
+    <div>No ancestor tree returned.</div>
     {% else %}
-    <div>No ancestor records returned.</div>
-    {% endif %}
-    {% else %}
-    <div>Results will appear here.</div>
+    <div>Tree will appear here.</div>
     {% endif %}
   </div>
 </section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Ancestor List</h2>
+      <p class="panel-subtitle">Flattened depth list for reference.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    {% if query_ran %}
+    {% if ancestors %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Depth</th>
+          <th>Ancestor ID</th>
+          <th>Name</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ancestor in ancestors %}
+        <tr>
+          <td>{{ ancestor.depth }}</td>
+          <td>{{ ancestor.id }}</td>
+          <td>{{ ancestor.name }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="result-box">No ancestor records returned.</div>
+    {% endif %}
+    {% else %}
+    <div class="result-box">Results will appear here.</div>
+    {% endif %}
+  </div>
+</section>
+
+{% if ancestor_tree %}
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="{{ url_for('static', filename='js/ancestor_tree_canvas.js') }}"></script>
+{% endif %}
 {% endblock %}

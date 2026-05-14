@@ -1,12 +1,11 @@
 # 数据库模式 BCNF 范式证明
 
-本数据库包含以下五个关系模式
+本数据库包含以下四个关系模式
 
 1. **User**(user_id, username, password_hash, email)  
 2. **FamilyTree**(tree_id, name, surname, revision_date, creator_id)  
 3. **Person**(person_id, tree_id, name, gender, birth_date, death_date)  
 4. **Relationship**(person1_id, person2_id, rel_type)  
-5. **KinshipClosure**(ancestor_id, descendant_id, depth)
 
 ## 1. 基本假设与函数依赖语义
 
@@ -48,14 +47,7 @@
 - 平凡依赖（如 `(person1_id, person2_id, rel_type) → person1_id`）不需要检查。  
 - 根据 BCNF 定义，没有非平凡依赖的关系模式自动满足 BCNF。
 
-### 2.5 `KinshipClosure` 表
-- 属性：`ancestor_id`, `descendant_id`, `depth`。  
-- **候选键**：`(ancestor_id, descendant_id)`（复合主键）。  
-- 函数依赖：`{ancestor_id, descendant_id} → depth`。  
-  不存在其他非平凡依赖（如 `ancestor_id → descendant_id` 不成立，`depth → ...` 不成立）。  
-- 所有非平凡依赖的决定因素 `{ancestor_id, descendant_id}` 正是候选键，因此是超键 → 满足 BCNF。
-
 ## 3. 整体结论
 
-- **User**、**FamilyTree**、**Person**、**Relationship**、**KinshipClosure** 均满足 BCNF 的定义。  
+- **User**、**FamilyTree**、**Person**、**Relationship** 均满足 BCNF 的定义。  
 - 因此，**整个数据库模式属于 BCNF 范式**。

@@ -8,7 +8,7 @@ TABLES = [
 	"Person",
 	"FamilyTree",
 	"Relationship",
-	"KinshipClosure",
+	"FamilyTreeInvite",
 ]
 
 

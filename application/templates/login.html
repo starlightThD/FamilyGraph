@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">Account</p>
     <h1>Log In</h1>
-    <p class="page-subtitle">Log in as an admin to create, edit, and delete data.</p>
+    <p class="page-subtitle">Authentication is required before accessing any page. Current dev mode checks identity only.</p>
   </div>
 </div>
 {% endblock %}
@@ -19,7 +19,7 @@
   {% endif %}
   <form class="form" method="post">
     <label>Email or Username<input type="text" name="username" required /></label>
-    <label>Password<input type="password" name="password" required /></label>
+    <label>Password (optional for now)<input type="password" name="password" /></label>
     <button type="submit" class="btn">Log In</button>
   </form>
 </section>

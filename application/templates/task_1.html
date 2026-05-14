@@ -25,10 +25,68 @@
     </div>
   </div>
   <form class="form inline" method="get">
-    <label>Center Person ID<input type="number" name="person_id" value="{{ request.args.get('person_id', '') }}" required /></label>
+    <label>Center Person ID<input type="number" name="person_id" value="{{ request.args.get('person_id', '') }}" min="0" required /></label>
     <button type="submit" class="btn">Run Query</button>
   </form>
   <div class="result-box">Results will appear here.</div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Name Fuzzy Match (3-Char)</h2>
+      <p class="panel-subtitle">Most names are 3 characters. Fill any of the 3 boxes to search candidates.</p>
+    </div>
+  </div>
+  <form class="form inline" method="get">
+    <label>Char 1 (Surname)
+      <input type="text" name="name_char_1" value="{{ name_char_1 }}" maxlength="1" placeholder="e.g., 张" />
+    </label>
+    <label>Char 2
+      <input type="text" name="name_char_2" value="{{ name_char_2 }}" maxlength="1" placeholder="e.g., 文" />
+    </label>
+    <label>Char 3
+      <input type="text" name="name_char_3" value="{{ name_char_3 }}" maxlength="1" placeholder="e.g., 德" />
+    </label>
+    <button type="submit" class="btn">Search by Name</button>
+  </form>
+
+  {% if name_search_ran %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Member ID</th>
+          <th>Name</th>
+          <th>Gender</th>
+          <th>Tree</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in name_candidates %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+          <td>{{ row.gender }}</td>
+          <td>{{ row.tree_id }} - {{ row.tree_name }}</td>
+          <td>
+            <a
+              class="btn small ghost"
+              href="{{ url_for('task_1', person_id=row.id, name_char_1=name_char_1, name_char_2=name_char_2, name_char_3=name_char_3) }}"
+            >Use as Center</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if name_search_message %}
+  <div class="result-box">{{ name_search_message }}</div>
+  {% endif %}
+  {% else %}
+  <div class="result-box">Name fuzzy-match candidates will appear here.</div>
+  {% endif %}
 </section>
 
 {% if message %}
