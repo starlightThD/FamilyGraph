@@ -32,6 +32,9 @@
   {% if message %}
   <div class="alert">{{ message }}</div>
   {% endif %}
+  {% if query_ran and ancestor_time_ms is not none %}
+  <div class="result-box">Query time: {{ ancestor_time_ms }} ms</div>
+  {% endif %}
 </section>
 
 <section class="panel">

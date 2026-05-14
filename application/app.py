@@ -2,6 +2,7 @@ import os
 import io
 import csv
 import zipfile
+import time
 from collections import defaultdict
 
 import psycopg2
@@ -1798,6 +1799,8 @@ def queries():
     ancestor_tree = None
     ancestor_message = None
     relationship_result = None
+    ancestor_time_ms = None
+    relationship_time_ms = None
     ancestor_member_id = request.args.get("ancestor_member_id")
     from_id = request.args.get("from_id")
     to_id = request.args.get("to_id")
@@ -1822,8 +1825,10 @@ def queries():
                     elif not can_access_tree(cursor, get_current_user(), tree_row[0]):
                         ancestor_message = "You do not have permission to view this member."
                     else:
+                        start_time = time.perf_counter()
                         ancestor_result = query_task_2_ancestors(ancestor_member_id_int, None)
                         ancestor_tree = build_ancestor_tree(cursor, ancestor_member_id_int)
+                        ancestor_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             if from_id and to_id:
                 try:
                     from_id_int = int(from_id)
@@ -1840,10 +1845,12 @@ def queries():
                     elif not can_access_tree(cursor, get_current_user(), from_row[0]) or not can_access_tree(cursor, get_current_user(), to_row[0]):
                         relationship_message = "You do not have permission to view one or both members."
                     else:
+                        start_time = time.perf_counter()
                         if relationship_engine == "python":
                             relationship_result = query_relationship_path_python(from_id_int, to_id_int)
                         else:
                             relationship_result = query_relationship_path(from_id_int, to_id_int)
+                        relationship_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
     return render_template(
         'queries.html',
@@ -1853,6 +1860,8 @@ def queries():
         relationship_result=relationship_result,
         relationship_message=relationship_message,
         relationship_engine=relationship_engine,
+        ancestor_time_ms=ancestor_time_ms,
+        relationship_time_ms=relationship_time_ms,
     )
 
 
@@ -1935,6 +1944,7 @@ def task_2():
     query_ran = False
     ancestors = []
     ancestor_tree = None
+    ancestor_time_ms = None
     person_id = request.args.get('person_id', '').strip()
     max_depth = request.args.get('max_depth', '').strip()
 
@@ -1964,8 +1974,10 @@ def task_2():
                     elif not can_access_tree(cursor, get_current_user(), row[0]):
                         message = "You do not have permission to view this person."
                     else:
+                        start_time = time.perf_counter()
                         ancestors = query_task_2_ancestors(person_id, max_depth)
                         ancestor_tree = build_ancestor_tree(cursor, person_id, max_depth)
+                        ancestor_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
     return render_template(
         'task_2.html',
@@ -1973,6 +1985,7 @@ def task_2():
         query_ran=query_ran,
         ancestors=ancestors,
         ancestor_tree=ancestor_tree,
+        ancestor_time_ms=ancestor_time_ms,
     )
 
 
