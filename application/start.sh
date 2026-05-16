@@ -7,6 +7,7 @@ APP_FILE="$SCRIPT_DIR/app.py"
 INIT_SQL="$PROJECT_ROOT/init/FG.sql"
 
 MODE="${1:-all}"
+SCHEMA_ON_ALL="${SCHEMA_ON_ALL:-true}"
 
 if [[ "$MODE" != "all" && "$MODE" != "backend" && "$MODE" != "db" ]]; then
   echo "Usage: ./application/start.sh [all|backend|db]"
@@ -43,7 +44,7 @@ init_db() {
   ensure_command createuser
   ensure_command createdb
 
-  echo "[1/3] Initializing PostgreSQL objects..."
+  echo "Initializing PostgreSQL objects..."
 
   if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${USER}'" | grep -q 1; then
     echo "Role '${USER}' already exists."
@@ -99,7 +100,13 @@ fi
 
 if [[ "$MODE" == "all" ]]; then
   configure_db_env
-  init_db
+  schema_on_all_normalized="$(printf '%s' "$SCHEMA_ON_ALL" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$schema_on_all_normalized" == "false" || "$schema_on_all_normalized" == "0" || "$schema_on_all_normalized" == "no" ]]; then
+    echo "[1/3] SCHEMA_ON_ALL=${SCHEMA_ON_ALL}; skipping schema update."
+  else
+    echo "[1/3] SCHEMA_ON_ALL=${SCHEMA_ON_ALL}; applying schema from $INIT_SQL"
+    init_db
+  fi
   load_csv_if_needed
 fi
 

@@ -730,33 +730,139 @@ def query_task_2_ancestors(person_id, max_depth):
             query = """
                 WITH RECURSIVE ancestor_walk AS (
                     SELECT
-                        r.person1_id AS ancestor_id,
-                        1 AS depth,
-                        ARRAY[r.person2_id, r.person1_id] AS path
-                    FROM "Relationship" r
-                    WHERE r.rel_type = 'parent' AND r.person2_id = %s
+                        seed.ancestor_id,
+                        seed.step AS depth,
+                        ARRAY[%s::INTEGER] || seed.append_path AS path
+                    FROM (
+                        SELECT
+                            a2.grandparent1_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent1_id, a2.grandparent1_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = %s
+                        UNION ALL
+                        SELECT
+                            a2.grandparent2_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent1_id, a2.grandparent2_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = %s
+                        UNION ALL
+                        SELECT
+                            a2.grandparent3_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent2_id, a2.grandparent3_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = %s
+                        UNION ALL
+                        SELECT
+                            a2.grandparent4_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent2_id, a2.grandparent4_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = %s
+                        UNION ALL
+                        SELECT
+                            r.person1_id AS ancestor_id,
+                            1 AS step,
+                            ARRAY[r.person1_id] AS append_path
+                        FROM "Relationship" r
+                        WHERE r.rel_type = 'parent'
+                          AND r.person2_id = %s
+                          AND NOT EXISTS (
+                              SELECT 1 FROM "Ancestor2" a2f WHERE a2f.person_id = %s
+                          )
+                    ) seed
+                    WHERE (%s::INTEGER IS NULL OR seed.step <= %s::INTEGER)
                     UNION ALL
                     SELECT
-                        r.person1_id AS ancestor_id,
-                        aw.depth + 1 AS depth,
-                        aw.path || r.person1_id
+                        nxt.ancestor_id,
+                        aw.depth + nxt.step AS depth,
+                        aw.path || nxt.append_path
                     FROM ancestor_walk aw
-                    JOIN "Relationship" r
-                      ON r.rel_type = 'parent'
-                     AND r.person2_id = aw.ancestor_id
-                    WHERE NOT (r.person1_id = ANY(aw.path))
+                    JOIN LATERAL (
+                        SELECT
+                            a2.grandparent1_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent1_id, a2.grandparent1_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = aw.ancestor_id
+                        UNION ALL
+                        SELECT
+                            a2.grandparent2_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent1_id, a2.grandparent2_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = aw.ancestor_id
+                        UNION ALL
+                        SELECT
+                            a2.grandparent3_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent2_id, a2.grandparent3_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = aw.ancestor_id
+                        UNION ALL
+                        SELECT
+                            a2.grandparent4_id AS ancestor_id,
+                            2 AS step,
+                            ARRAY[a2.parent2_id, a2.grandparent4_id] AS append_path
+                        FROM "Ancestor2" a2
+                        WHERE a2.person_id = aw.ancestor_id
+                        UNION ALL
+                        SELECT
+                            r.person1_id AS ancestor_id,
+                            1 AS step,
+                            ARRAY[r.person1_id] AS append_path
+                        FROM "Relationship" r
+                        WHERE r.rel_type = 'parent'
+                          AND r.person2_id = aw.ancestor_id
+                          AND NOT EXISTS (
+                              SELECT 1 FROM "Ancestor2" a2f WHERE a2f.person_id = aw.ancestor_id
+                          )
+                    ) nxt ON TRUE
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM unnest(nxt.append_path) AS step_id(id)
+                        WHERE step_id.id = ANY(aw.path)
+                    )
+                      AND (%s::INTEGER IS NULL OR aw.depth + nxt.step <= %s::INTEGER)
+                )
+                , ancestor_nodes AS (
+                    SELECT
+                        node.person_id AS ancestor_id,
+                        node.ord - 1 AS depth
+                    FROM ancestor_walk aw
+                    CROSS JOIN LATERAL unnest(aw.path) WITH ORDINALITY AS node(person_id, ord)
+                    WHERE node.ord > 1
                 )
                 SELECT
-                    aw.ancestor_id,
+                    an.ancestor_id,
                     p.name,
-                    MIN(aw.depth) AS depth
-                FROM ancestor_walk aw
-                JOIN "Person" p ON p.person_id = aw.ancestor_id
-                GROUP BY aw.ancestor_id, p.name
-                HAVING (%s::INTEGER IS NULL OR MIN(aw.depth) <= %s::INTEGER)
-                ORDER BY MIN(aw.depth), aw.ancestor_id
+                    MIN(an.depth) AS depth
+                FROM ancestor_nodes an
+                JOIN "Person" p ON p.person_id = an.ancestor_id
+                GROUP BY an.ancestor_id, p.name
+                HAVING (%s::INTEGER IS NULL OR MIN(an.depth) <= %s::INTEGER)
+                ORDER BY MIN(an.depth), an.ancestor_id
             """
-            cursor.execute(query, (person_id, max_depth, max_depth))
+            cursor.execute(
+                query,
+                (
+                    person_id,
+                    person_id,
+                    person_id,
+                    person_id,
+                    person_id,
+                    person_id,
+                    person_id,
+                    max_depth,
+                    max_depth,
+                    max_depth,
+                    max_depth,
+                    max_depth,
+                    max_depth,
+                ),
+            )
             rows = cursor.fetchall()
 
     return [{"id": r[0], "name": r[1], "depth": r[2]} for r in rows]
@@ -1343,6 +1449,7 @@ def family_trees():
     edit_tree = None
     refresh_current_session = False
     refreshed_access_mask = current_user.get('tree_access_mask', 0) if current_user else 0
+    need_refresh_ancestor2 = False
 
     if request.method == 'POST':
         action = request.form.get('action', '').strip()
@@ -1526,6 +1633,8 @@ def family_trees():
                                         """,
                                         (parent_id, new_member_id),
                                     )
+                                    if cursor.rowcount > 0:
+                                        need_refresh_ancestor2 = True
 
                             if spouse_id_raw:
                                 try:
@@ -1616,9 +1725,13 @@ def family_trees():
                                 if cursor.rowcount == 0:
                                     message = f"Member {member_id} not found."
                                 else:
+                                    need_refresh_ancestor2 = True
                                     message = f"Member {member_id} deleted."
 
                 conn.commit()
+                if need_refresh_ancestor2:
+                    cursor.execute('REFRESH MATERIALIZED VIEW "Ancestor2"')
+                    conn.commit()
                 if refresh_current_session and current_user:
                     cursor.execute(
                         'SELECT user_id, username, email, is_admin FROM "User" WHERE user_id = %s',

@@ -55,6 +55,9 @@ def main():
                 load_table(cursor, table_name, csv_path)
                 conn.commit()
                 print(f"Loaded {table_name} from {file_name}")
+            cursor.execute('REFRESH MATERIALIZED VIEW "Ancestor2"')
+            conn.commit()
+            print("Refreshed materialized view Ancestor2")
 
 
 if __name__ == "__main__":
