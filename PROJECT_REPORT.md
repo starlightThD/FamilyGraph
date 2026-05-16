@@ -36,9 +36,9 @@
 | SQL 核心 | 平均寿命最长辈分 | ✅ 已实现 | SQL 统计逻辑已存在 |
 | SQL 核心 | 男性>50且无配偶 | ✅ 已补充 | 固定条件单条 SQL 已整理（见第 5 节） |
 | SQL 核心 | 早于本代平均出生年份成员 | ✅ 已实现 | SQL 已实现 |
-| 物理优化 | 模糊姓名查询索引策略 | ❌ 未完成 | 未见对应索引 DDL |
-| 物理优化 | 父节点查子节点索引策略 | ❌ 未完成 | 未见对应索引 DDL |
-| 物理优化 | 有/无索引性能对比 + EXPLAIN | ❌ 未完成 | 未见实验记录与执行计划 |
+| 物理优化 | 祖先/亲缘递归查询索引策略 | ✅ 已实现 | `init/FG.sql` 已新增 `idx_rel_parent_person2_person1` |
+| 物理优化 | 索引动机与适配查询说明 | ✅ 已补充 | 针对 `person2_id -> person1_id` 递归方向优化 |
+| 物理优化 | 有/无索引性能对比 + EXPLAIN | ⏳ 进行中 | 索引已落地，待补完整实验截图与计划输出 |
 
 ## 3. 关键实现证据（文件定位）
 
@@ -51,12 +51,99 @@
 
 ## 4. 当前最需要补齐的内容（仅优化项，建议优先级）
 
-1. **P0：物理优化章节**  
-   补 `CREATE INDEX`（姓名模糊查询、parent->child 查询），并补一组“有/无索引”的四代查询 `EXPLAIN ANALYZE` 对比结果。
+1. **P0：补齐 EXPLAIN 对比实验结果**  
+   现已完成索引 DDL 落地，下一步补充“建索引前后”的 `EXPLAIN (ANALYZE, BUFFERS)` 截图与统计表。
 
-## 5. 非优化部分补充（可直接放入报告）
+## 5. 物理优化补充（可直接放入报告）
 
-### 5.1 成员 ID 查询“配偶 + 子女”的单条 SQL
+### 5.1 递归查询索引优化（已落地）
+
+#### 场景
+
+- 查询一个人的所有直系祖先；
+- 查询两个人之间是否有亲缘关系（递归向上找共同祖先）。
+
+上述两类查询在递归过程中都会高频执行：
+
+```sql
+WHERE r.rel_type = 'parent'
+  AND r.person2_id = ?
+```
+
+并读取 `person1_id` 作为下一层父节点。
+
+#### 索引 DDL
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_rel_parent_person2_person1
+ON "Relationship" (person2_id, person1_id)
+WHERE rel_type = 'parent';
+```
+
+#### 设计理由
+
+- 现有主键为 `(person1_id, person2_id, rel_type)`，对 `person2_id` 方向查询不友好；
+- 祖先/亲缘递归是“子找父”（`person2_id -> person1_id`），与主键顺序不一致；
+- 该部分索引仅覆盖 `rel_type='parent'` 记录，体积更小、命中更集中。
+
+#### 预期效果
+
+- 祖先查询中每层递归对 `Relationship` 的扫描行数显著减少；
+- 两人亲缘关系判定时，双向递归的层级扩展成本下降；
+- 执行计划更容易从 `Seq Scan` 转为 `Index Scan` / `Bitmap Index Scan`。
+
+### 5.2 建议的对比验证 SQL（待补实验截图）
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+WITH RECURSIVE ancestor_walk AS (
+    SELECT r.person1_id AS ancestor_id, 1 AS depth, ARRAY[r.person2_id, r.person1_id] AS path
+    FROM "Relationship" r
+    WHERE r.rel_type = 'parent' AND r.person2_id = 15240
+    UNION ALL
+    SELECT r.person1_id, aw.depth + 1, aw.path || r.person1_id
+    FROM ancestor_walk aw
+    JOIN "Relationship" r
+      ON r.rel_type = 'parent'
+     AND r.person2_id = aw.ancestor_id
+    WHERE NOT (r.person1_id = ANY(aw.path))
+)
+SELECT ancestor_id, MIN(depth) AS depth
+FROM ancestor_walk
+GROUP BY ancestor_id;
+```
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+WITH RECURSIVE from_walk AS (
+    SELECT 15240::INTEGER AS current_id, ARRAY[15240::INTEGER] AS path, 0 AS depth
+    UNION ALL
+    SELECT r.person1_id, fw.path || r.person1_id, fw.depth + 1
+    FROM from_walk fw
+    JOIN "Relationship" r
+      ON r.rel_type = 'parent'
+     AND r.person2_id = fw.current_id
+    WHERE NOT (r.person1_id = ANY(fw.path))
+),
+to_walk AS (
+    SELECT 18001::INTEGER AS current_id, ARRAY[18001::INTEGER] AS path, 0 AS depth
+    UNION ALL
+    SELECT r.person1_id, tw.path || r.person1_id, tw.depth + 1
+    FROM to_walk tw
+    JOIN "Relationship" r
+      ON r.rel_type = 'parent'
+     AND r.person2_id = tw.current_id
+    WHERE NOT (r.person1_id = ANY(tw.path))
+)
+SELECT 1
+FROM from_walk f
+JOIN to_walk t ON t.current_id = f.current_id
+LIMIT 1;
+```
+
+## 6. 非优化部分补充（可直接放入报告）
+
+### 6.1 成员 ID 查询“配偶 + 子女”的单条 SQL
 
 ```sql
 SELECT relation_type, related_id, related_name
@@ -93,7 +180,7 @@ FROM (
 ORDER BY relation_type, related_id;
 ```
 
-### 5.2 “男性 > 50 岁且无配偶”的单条 SQL
+### 6.2 “男性 > 50 岁且无配偶”的单条 SQL
 
 ```sql
 SELECT
@@ -113,7 +200,7 @@ WHERE p.gender = 'male'
 ORDER BY p.person_id;
 ```
 
-### 5.3 “父辈出生早于子代”的跨表约束实现（触发器）
+### 6.3 “父辈出生早于子代”的跨表约束实现（触发器）
 
 > 说明：该规则涉及跨表比较，`CHECK` 约束不适合直接表达，采用触发器更稳妥。
 
@@ -156,9 +243,9 @@ FOR EACH ROW
 EXECUTE FUNCTION fg_check_parent_birth_before_child();
 ```
 
-## 6. 可直接放进答辩/提交材料的描述
+## 7. 可直接放进答辩/提交材料的描述
 
 - 本项目已实现课程要求中的主要业务功能与核心 SQL 递归能力，具备可演示的完整流程（注册/登录->族谱协作->成员管理->树形与查询分析）。  
 - 在数据库建模方面，已完成 ER 图、关系模式映射及 BCNF 证明。  
 - 在数据工程方面，已提供大规模模拟数据生成（10 个族谱、30 代传承、总量超过 10 万）及 COPY 导入、族谱级导出。  
-- 当前剩余工作主要为物理优化实验材料（索引设计 + EXPLAIN 对比）。
+- 当前优化工作已进入“实验结果补全”阶段，索引策略已落地，待补 EXPLAIN 前后对比截图与统计表。

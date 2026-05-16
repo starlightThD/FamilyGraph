@@ -467,6 +467,36 @@ button.small {
   font-size: 0.9rem;
 }
 
+.request-time-bubble {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  padding: 0.52rem 0.74rem;
+  border-radius: 999px;
+  border: 1px solid rgba(26, 97, 76, 0.28);
+  background: rgba(236, 255, 248, 0.98);
+  color: #184638;
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(18, 66, 53, 0.15);
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.request-time-bubble.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.request-time-bubble.error {
+  border-color: rgba(180, 44, 44, 0.35);
+  background: rgba(255, 241, 241, 0.98);
+  color: #7f2323;
+}
+
 .tree,
 .tree ul {
   list-style: none;
@@ -664,6 +694,10 @@ button.small {
   stroke-width: 1.1;
 }
 
+.ancestor-card-expandable:hover {
+  filter: brightness(0.985);
+}
+
 .ancestor-root-card {
   fill: #e8f6f5;
   stroke: #6cb0ab;
@@ -678,6 +712,12 @@ button.small {
   fill: #1f2a33;
   font-size: 12.5px;
   font-weight: 600;
+  pointer-events: none;
+}
+
+.ancestor-card-meta {
+  fill: #5c6a74;
+  font-size: 10.5px;
   pointer-events: none;
 }
 

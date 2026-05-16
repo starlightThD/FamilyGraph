@@ -6,7 +6,7 @@ import time
 from collections import defaultdict
 
 import psycopg2
-from flask import Flask, render_template, request, redirect, session, url_for, send_file, abort, jsonify
+from flask import Flask, render_template, request, redirect, session, url_for, send_file, abort, jsonify, g
 from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
@@ -21,6 +21,16 @@ TABLES = [
 ]
 
 MAX_RELATIONSHIP_DEPTH = 50
+try:
+    RELATIONSHIP_SQL_TIMEOUT_MS = max(1, int(os.getenv("RELATIONSHIP_SQL_TIMEOUT_MS", "20000")))
+except ValueError:
+    RELATIONSHIP_SQL_TIMEOUT_MS = 20000
+try:
+    ACCESS_MASK_REFRESH_INTERVAL_SECONDS = max(
+        1, int(os.getenv("ACCESS_MASK_REFRESH_INTERVAL_SECONDS", "60"))
+    )
+except ValueError:
+    ACCESS_MASK_REFRESH_INTERVAL_SECONDS = 60
 
 
 def extract_user_surname(username):
@@ -96,6 +106,18 @@ def apply_user_session(user_id, username, email, is_admin, access_mask):
     session['is_admin'] = is_admin
     session['surname'] = extract_user_surname(username)
     session['tree_access_mask'] = int(access_mask or 0)
+    session['access_mask_refreshed_at'] = int(time.time())
+
+
+def should_refresh_access_mask():
+    last_refreshed_at = session.get('access_mask_refreshed_at')
+    if last_refreshed_at is None:
+        return True
+    try:
+        last_refreshed_at = int(last_refreshed_at)
+    except (TypeError, ValueError):
+        return True
+    return (int(time.time()) - last_refreshed_at) >= ACCESS_MASK_REFRESH_INTERVAL_SECONDS
 
 
 def rebuild_user_access_mask(cursor, user_id, username, email, is_admin):
@@ -434,6 +456,108 @@ def build_ancestor_tree(cursor, person_id, max_depth=None):
     return build_node(person_row[0], set())
 
 
+def format_ancestor_preview_node(person_id, name, generation, depth, has_parents, path_ids):
+    generation_display = generation if generation is not None else "?"
+    return {
+        "id": person_id,
+        "name": name,
+        "generation": generation,
+        "depth": depth,
+        "label": f"{name} (ID {person_id}, G{generation_display})",
+        "has_parents": bool(has_parents),
+        "path_ids": path_ids,
+    }
+
+
+def format_descendant_preview_node(person_id, name, generation, gender, depth, has_children, path_ids):
+    generation_display = generation if generation is not None else "?"
+    return {
+        "id": person_id,
+        "name": name,
+        "generation": generation,
+        "gender": gender,
+        "depth": depth,
+        "label": f"{name} (ID {person_id}, G{generation_display})",
+        "has_children": bool(has_children),
+        "path_ids": path_ids,
+    }
+
+
+def parse_optional_max_depth(raw_value):
+    raw_value = (raw_value or "").strip()
+    if not raw_value:
+        return None, None
+    try:
+        max_depth = int(raw_value)
+        if max_depth < 1:
+            raise ValueError
+    except ValueError:
+        return None, "Max depth must be a positive number."
+    return max_depth, None
+
+
+def parse_path_ids(raw_path):
+    raw_path = (raw_path or "").strip()
+    if not raw_path:
+        return None, "Path is required."
+    tokens = [token.strip() for token in raw_path.split(",") if token.strip()]
+    if not tokens:
+        return None, "Path is required."
+    try:
+        path_ids = [int(token) for token in tokens]
+    except ValueError:
+        return None, "Path must contain numeric IDs only."
+    if any(node_id < 1 for node_id in path_ids):
+        return None, "Path IDs must be positive numbers."
+    if len(set(path_ids)) != len(path_ids):
+        return None, "Path cannot contain duplicate node IDs."
+    return path_ids, None
+
+
+def is_valid_ancestor_chain(cursor, path_ids):
+    if len(path_ids) <= 1:
+        return True
+    for idx in range(1, len(path_ids)):
+        child_id = path_ids[idx - 1]
+        parent_id = path_ids[idx]
+        cursor.execute(
+            """
+            SELECT 1
+            FROM "Relationship"
+            WHERE rel_type = 'parent'
+              AND person1_id = %s
+              AND person2_id = %s
+            LIMIT 1
+            """,
+            (parent_id, child_id),
+        )
+        if cursor.fetchone() is None:
+            return False
+    return True
+
+
+def is_valid_descendant_chain(cursor, path_ids):
+    if len(path_ids) <= 1:
+        return True
+    for idx in range(1, len(path_ids)):
+        parent_id = path_ids[idx - 1]
+        child_id = path_ids[idx]
+        cursor.execute(
+            """
+            SELECT 1
+            FROM "Relationship"
+            WHERE rel_type = 'parent'
+              AND person1_id = %s
+              AND person2_id = %s
+            LIMIT 1
+            """,
+            (parent_id, child_id),
+        )
+        if cursor.fetchone() is None:
+            return False
+    return True
+
+
 def query_task_1_kin_radius(person_id):
     """Input: person_id (int). Output: (message, person, parents, spouses, siblings, children, spouse_gate_note)."""
     # Purpose: fetch center person and depth-1 relations (parents, spouse, siblings, children).
@@ -638,10 +762,63 @@ def query_task_2_ancestors(person_id, max_depth):
     return [{"id": r[0], "name": r[1], "depth": r[2]} for r in rows]
 
 
-def query_relationship_path(from_id, to_id, max_depth=MAX_RELATIONSHIP_DEPTH):
+def query_task_6_descendants(person_id, max_depth, visible_tree_ids):
+    """Input: person_id (int), max_depth (int|None). Output: list of direct descendants."""
+    if not visible_tree_ids:
+        return []
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            query = """
+                WITH RECURSIVE descendant_walk AS (
+                    SELECT
+                        c.person_id AS descendant_id,
+                        1 AS depth,
+                        ARRAY[%s::INTEGER, c.person_id] AS path
+                    FROM "Relationship" r
+                    JOIN "Person" c ON c.person_id = r.person2_id
+                    WHERE r.rel_type = 'parent'
+                      AND r.person1_id = %s
+                      AND c.tree_id = ANY(%s)
+                    UNION ALL
+                    SELECT
+                        c.person_id AS descendant_id,
+                        dw.depth + 1 AS depth,
+                        dw.path || c.person_id
+                    FROM descendant_walk dw
+                    JOIN "Relationship" r
+                      ON r.rel_type = 'parent'
+                     AND r.person1_id = dw.descendant_id
+                    JOIN "Person" c ON c.person_id = r.person2_id
+                    WHERE c.tree_id = ANY(%s)
+                      AND NOT (c.person_id = ANY(dw.path))
+                )
+                SELECT
+                    dw.descendant_id,
+                    p.name,
+                    p.gender,
+                    MIN(dw.depth) AS depth
+                FROM descendant_walk dw
+                JOIN "Person" p ON p.person_id = dw.descendant_id
+                GROUP BY dw.descendant_id, p.name, p.gender
+                HAVING (%s::INTEGER IS NULL OR MIN(dw.depth) <= %s::INTEGER)
+                ORDER BY MIN(dw.depth), dw.descendant_id
+            """
+            cursor.execute(
+                query,
+                (person_id, person_id, list(visible_tree_ids), list(visible_tree_ids), max_depth, max_depth),
+            )
+            rows = cursor.fetchall()
+
+    return [{"id": r[0], "name": r[1], "gender": r[2], "depth": r[3]} for r in rows]
+
+
+def query_relationship_path(from_id, to_id, max_depth=MAX_RELATIONSHIP_DEPTH, timeout_ms=None):
     """Input: from_id (int), to_id (int). Output: dict with path info or None."""
     with get_connection() as conn:
         with conn.cursor() as cursor:
+            if timeout_ms is not None:
+                timeout_ms = max(1, int(timeout_ms))
+                cursor.execute("SET LOCAL statement_timeout = %s", (f"{timeout_ms}ms",))
             cursor.execute(
                 """
                 WITH RECURSIVE from_walk AS (
@@ -934,60 +1111,31 @@ def query_task_5_early_births(tree_id, generation_depth):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                WITH RECURSIVE roots AS (
-                    SELECT p.person_id
+                WITH
+                gen_avg AS (
+                    SELECT
+                        p.generation,
+                        AVG(EXTRACT(YEAR FROM p.birth_date)) AS avg_birth_year
                     FROM "Person" p
                     WHERE p.tree_id = %s
-                      AND NOT EXISTS (
-                          SELECT 1
-                          FROM "Relationship" r
-                          WHERE r.rel_type = 'parent'
-                            AND r.person2_id = p.person_id
-                      )
-                ),
-                tree_walk AS (
-                    SELECT
-                        rt.person_id AS person_id,
-                        0 AS depth
-                    FROM roots rt
-                    UNION
-                    SELECT
-                        r.person2_id AS person_id,
-                        tw.depth + 1 AS depth
-                    FROM tree_walk tw
-                    JOIN "Relationship" r
-                      ON r.rel_type = 'parent'
-                     AND r.person1_id = tw.person_id
-                    WHERE tw.depth < 120
-                ),
-                gen_depths AS (
-                    SELECT tw.person_id, MIN(tw.depth) AS depth
-                    FROM tree_walk tw
-                    GROUP BY tw.person_id
-                ),
-                gen_avg AS (
-                    SELECT gd.depth, AVG(EXTRACT(YEAR FROM p.birth_date)) AS avg_birth_year
-                    FROM gen_depths gd
-                    JOIN "Person" p ON p.person_id = gd.person_id
-                    WHERE p.tree_id = %s AND p.birth_date IS NOT NULL
-                    GROUP BY gd.depth
+                      AND p.birth_date IS NOT NULL
+                    GROUP BY p.generation
                 )
                 SELECT
                     p.person_id,
                     p.name,
                     EXTRACT(YEAR FROM p.birth_date) AS birth_year,
                     ga.avg_birth_year,
-                    gd.depth
-                FROM gen_depths gd
-                JOIN "Person" p ON p.person_id = gd.person_id
-                JOIN gen_avg ga ON ga.depth = gd.depth
+                    p.generation
+                FROM "Person" p
+                JOIN gen_avg ga ON ga.generation = p.generation
                 WHERE p.tree_id = %s
                   AND p.birth_date IS NOT NULL
                   AND EXTRACT(YEAR FROM p.birth_date) < ga.avg_birth_year
-                  AND (%s IS NULL OR gd.depth = %s)
-                ORDER BY gd.depth, birth_year, p.person_id
+                  AND (%s IS NULL OR p.generation = %s)
+                ORDER BY p.generation, birth_year, p.person_id
                 """,
-                (tree_id, tree_id, tree_id, generation_depth, generation_depth),
+                (tree_id, tree_id, generation_depth, generation_depth),
             )
             rows = cursor.fetchall()
 
@@ -1020,6 +1168,30 @@ def inject_access_context():
 
 
 @app.before_request
+def begin_request_timing():
+    g.request_started_at = time.perf_counter()
+
+
+@app.after_request
+def append_request_timing_headers(response):
+    started_at = getattr(g, "request_started_at", None)
+    if started_at is None:
+        return response
+
+    duration_ms = (time.perf_counter() - started_at) * 1000
+    response.headers["X-Server-Time-Ms"] = f"{duration_ms:.2f}"
+
+    timing_metric = f'app;desc="backend";dur={duration_ms:.2f}'
+    existing_timing = response.headers.get("Server-Timing")
+    if existing_timing:
+        response.headers["Server-Timing"] = f"{existing_timing}, {timing_metric}"
+    else:
+        response.headers["Server-Timing"] = timing_metric
+
+    return response
+
+
+@app.before_request
 def require_login():
     public_endpoints = {"login", "register", "static"}
     endpoint = request.endpoint
@@ -1029,17 +1201,24 @@ def require_login():
     if user is None:
         next_url = request.full_path if request.query_string else request.path
         return redirect(url_for('login', next=next_url))
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            refreshed_access_mask = rebuild_user_access_mask(
-                cursor,
-                user['user_id'],
-                user['username'],
-                user['email'],
-                user['is_admin'],
-            )
-            conn.commit()
-    apply_user_session(user['user_id'], user['username'], user['email'], user['is_admin'], refreshed_access_mask)
+    if should_refresh_access_mask():
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                refreshed_access_mask = rebuild_user_access_mask(
+                    cursor,
+                    user['user_id'],
+                    user['username'],
+                    user['email'],
+                    user['is_admin'],
+                )
+                conn.commit()
+        apply_user_session(
+            user['user_id'],
+            user['username'],
+            user['email'],
+            user['is_admin'],
+            refreshed_access_mask,
+        )
     return None
 
 
@@ -1458,18 +1637,6 @@ def family_trees():
 
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            if current_user:
-                refreshed_access_mask = rebuild_user_access_mask_by_id(cursor, current_user['user_id'])
-                cursor.execute(
-                    'SELECT user_id, username, email, is_admin FROM "User" WHERE user_id = %s',
-                    (current_user['user_id'],),
-                )
-                user_row = cursor.fetchone()
-                if user_row:
-                    apply_user_session(user_row[0], user_row[1], user_row[2], user_row[3], refreshed_access_mask)
-                    current_user = get_current_user()
-                conn.commit()
-
             rows = get_visible_tree_rows(cursor, current_user)
             visible_tree_ids = {row[0] for row in rows}
             if current_user and current_user.get('is_admin'):
@@ -1720,6 +1887,329 @@ def tree_preview_node_expand_api(person_id):
     return jsonify({"ok": True, "node_id": person_id, "spouses": spouses, "children": children})
 
 
+@app.get('/api/ancestor-preview/root')
+def ancestor_preview_root_api():
+    current_user = get_current_user()
+    person_id_raw = request.args.get('person_id', '').strip()
+    if not person_id_raw:
+        return jsonify({"ok": False, "error": "Person ID is required."}), 400
+
+    try:
+        person_id = int(person_id_raw)
+        if person_id < 1:
+            raise ValueError
+    except ValueError:
+        return jsonify({"ok": False, "error": "Person ID must be a positive number."}), 400
+
+    max_depth, depth_error = parse_optional_max_depth(request.args.get('max_depth'))
+    if depth_error:
+        return jsonify({"ok": False, "error": depth_error}), 400
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT person_id, name, generation, tree_id
+                FROM "Person"
+                WHERE person_id = %s
+                """,
+                (person_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": f"Person {person_id} not found."}), 404
+
+            if not can_access_tree(cursor, current_user, row[3]):
+                return jsonify({"ok": False, "error": "You do not have permission to view this person."}), 403
+
+            has_parents = False
+            if max_depth is None or max_depth > 0:
+                cursor.execute(
+                    """
+                    SELECT 1
+                    FROM "Relationship"
+                    WHERE rel_type = 'parent'
+                      AND person2_id = %s
+                    LIMIT 1
+                    """,
+                    (person_id,),
+                )
+                has_parents = cursor.fetchone() is not None
+
+    root_node = format_ancestor_preview_node(
+        row[0],
+        row[1],
+        row[2],
+        depth=0,
+        has_parents=has_parents,
+        path_ids=[row[0]],
+    )
+    return jsonify({"ok": True, "root": root_node, "max_depth": max_depth})
+
+
+@app.get('/api/ancestor-preview/node/<int:person_id>/expand')
+def ancestor_preview_node_expand_api(person_id):
+    current_user = get_current_user()
+    root_id_raw = request.args.get('root_id', '').strip()
+    if not root_id_raw:
+        return jsonify({"ok": False, "error": "Root ID is required."}), 400
+    try:
+        root_id = int(root_id_raw)
+        if root_id < 1:
+            raise ValueError
+    except ValueError:
+        return jsonify({"ok": False, "error": "Root ID must be a positive number."}), 400
+
+    max_depth, depth_error = parse_optional_max_depth(request.args.get('max_depth'))
+    if depth_error:
+        return jsonify({"ok": False, "error": depth_error}), 400
+
+    path_ids, path_error = parse_path_ids(request.args.get('path'))
+    if path_error:
+        return jsonify({"ok": False, "error": path_error}), 400
+    if path_ids[0] != root_id:
+        return jsonify({"ok": False, "error": "Path must start from root ID."}), 400
+    if path_ids[-1] != person_id:
+        return jsonify({"ok": False, "error": "Path does not match requested node."}), 400
+
+    current_depth = len(path_ids) - 1
+    if max_depth is not None and current_depth >= max_depth:
+        return jsonify({"ok": True, "node_id": person_id, "parents": []})
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT tree_id
+                FROM "Person"
+                WHERE person_id = %s
+                """,
+                (root_id,),
+            )
+            root_row = cursor.fetchone()
+            if not root_row:
+                return jsonify({"ok": False, "error": f"Root person {root_id} not found."}), 404
+
+            if not can_access_tree(cursor, current_user, root_row[0]):
+                return jsonify({"ok": False, "error": "You do not have permission to view this person."}), 403
+
+            if not is_valid_ancestor_chain(cursor, path_ids):
+                return jsonify({"ok": False, "error": "Invalid ancestor path."}), 400
+
+            cursor.execute(
+                """
+                SELECT p.person_id, p.name, p.generation
+                FROM "Relationship" r
+                JOIN "Person" p ON p.person_id = r.person1_id
+                WHERE r.rel_type = 'parent'
+                  AND r.person2_id = %s
+                ORDER BY p.person_id
+                """,
+                (person_id,),
+            )
+            parent_rows = cursor.fetchall()
+
+            path_set = set(path_ids)
+            filtered_rows = [row for row in parent_rows if row[0] not in path_set]
+            parent_ids = [row[0] for row in filtered_rows]
+            next_depth = current_depth + 1
+
+            parent_has_parents = set()
+            if parent_ids and (max_depth is None or next_depth < max_depth):
+                cursor.execute(
+                    """
+                    SELECT DISTINCT person2_id
+                    FROM "Relationship"
+                    WHERE rel_type = 'parent'
+                      AND person2_id = ANY(%s)
+                    """,
+                    (parent_ids,),
+                )
+                parent_has_parents = {row[0] for row in cursor.fetchall()}
+
+    parents = [
+        format_ancestor_preview_node(
+            row[0],
+            row[1],
+            row[2],
+            depth=next_depth,
+            has_parents=(row[0] in parent_has_parents),
+            path_ids=path_ids + [row[0]],
+        )
+        for row in filtered_rows
+    ]
+
+    return jsonify({"ok": True, "node_id": person_id, "parents": parents})
+
+
+@app.get('/api/patriline-preview/root')
+def patriline_preview_root_api():
+    current_user = get_current_user()
+    person_id_raw = request.args.get('person_id', '').strip()
+    if not person_id_raw:
+        return jsonify({"ok": False, "error": "Person ID is required."}), 400
+
+    try:
+        person_id = int(person_id_raw)
+        if person_id < 1:
+            raise ValueError
+    except ValueError:
+        return jsonify({"ok": False, "error": "Person ID must be a positive number."}), 400
+
+    max_depth, depth_error = parse_optional_max_depth(request.args.get('max_depth'))
+    if depth_error:
+        return jsonify({"ok": False, "error": depth_error}), 400
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT person_id, name, generation, gender, tree_id
+                FROM "Person"
+                WHERE person_id = %s
+                """,
+                (person_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": f"Person {person_id} not found."}), 404
+
+            if not can_access_tree(cursor, current_user, row[4]):
+                return jsonify({"ok": False, "error": "You do not have permission to view this person."}), 403
+
+            visible_tree_ids = get_visible_tree_ids(cursor, current_user)
+
+            has_children = False
+            if max_depth is None or max_depth > 0:
+                cursor.execute(
+                    """
+                    SELECT 1
+                    FROM "Relationship" r
+                    JOIN "Person" c ON c.person_id = r.person2_id
+                    WHERE r.rel_type = 'parent'
+                      AND r.person1_id = %s
+                      AND c.tree_id = ANY(%s)
+                    LIMIT 1
+                    """,
+                    (person_id, list(visible_tree_ids)),
+                )
+                has_children = cursor.fetchone() is not None
+
+    root_node = format_descendant_preview_node(
+        row[0],
+        row[1],
+        row[2],
+        row[3],
+        depth=0,
+        has_children=has_children,
+        path_ids=[row[0]],
+    )
+    return jsonify({"ok": True, "root": root_node, "max_depth": max_depth})
+
+
+@app.get('/api/patriline-preview/node/<int:person_id>/expand')
+def patriline_preview_node_expand_api(person_id):
+    current_user = get_current_user()
+    root_id_raw = request.args.get('root_id', '').strip()
+    if not root_id_raw:
+        return jsonify({"ok": False, "error": "Root ID is required."}), 400
+    try:
+        root_id = int(root_id_raw)
+        if root_id < 1:
+            raise ValueError
+    except ValueError:
+        return jsonify({"ok": False, "error": "Root ID must be a positive number."}), 400
+
+    max_depth, depth_error = parse_optional_max_depth(request.args.get('max_depth'))
+    if depth_error:
+        return jsonify({"ok": False, "error": depth_error}), 400
+
+    path_ids, path_error = parse_path_ids(request.args.get('path'))
+    if path_error:
+        return jsonify({"ok": False, "error": path_error}), 400
+    if path_ids[0] != root_id:
+        return jsonify({"ok": False, "error": "Path must start from root ID."}), 400
+    if path_ids[-1] != person_id:
+        return jsonify({"ok": False, "error": "Path does not match requested node."}), 400
+
+    current_depth = len(path_ids) - 1
+    if max_depth is not None and current_depth >= max_depth:
+        return jsonify({"ok": True, "node_id": person_id, "children": []})
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT tree_id
+                FROM "Person"
+                WHERE person_id = %s
+                """,
+                (root_id,),
+            )
+            root_row = cursor.fetchone()
+            if not root_row:
+                return jsonify({"ok": False, "error": f"Root person {root_id} not found."}), 404
+
+            if not can_access_tree(cursor, current_user, root_row[0]):
+                return jsonify({"ok": False, "error": "You do not have permission to view this person."}), 403
+
+            if not is_valid_descendant_chain(cursor, path_ids):
+                return jsonify({"ok": False, "error": "Invalid descendant path."}), 400
+
+            visible_tree_ids = get_visible_tree_ids(cursor, current_user)
+            if not visible_tree_ids:
+                return jsonify({"ok": True, "node_id": person_id, "children": []})
+
+            cursor.execute(
+                """
+                SELECT child.person_id, child.name, child.generation, child.gender
+                FROM "Relationship" r
+                JOIN "Person" child ON child.person_id = r.person2_id
+                WHERE r.rel_type = 'parent'
+                  AND r.person1_id = %s
+                  AND child.tree_id = ANY(%s)
+                ORDER BY child.person_id
+                """,
+                (person_id, list(visible_tree_ids)),
+            )
+            child_rows = cursor.fetchall()
+
+            path_set = set(path_ids)
+            filtered_rows = [row for row in child_rows if row[0] not in path_set]
+            child_ids = [row[0] for row in filtered_rows]
+            next_depth = current_depth + 1
+
+            child_has_children = set()
+            if child_ids and (max_depth is None or next_depth < max_depth):
+                cursor.execute(
+                    """
+                    SELECT DISTINCT r.person1_id
+                    FROM "Relationship" r
+                    JOIN "Person" child ON child.person_id = r.person2_id
+                    WHERE r.rel_type = 'parent'
+                      AND r.person1_id = ANY(%s)
+                      AND child.tree_id = ANY(%s)
+                    """,
+                    (child_ids, list(visible_tree_ids)),
+                )
+                child_has_children = {row[0] for row in cursor.fetchall()}
+
+    children = [
+        format_descendant_preview_node(
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            depth=next_depth,
+            has_children=(row[0] in child_has_children),
+            path_ids=path_ids + [row[0]],
+        )
+        for row in filtered_rows
+    ]
+
+    return jsonify({"ok": True, "node_id": person_id, "children": children})
+
+
 @app.route('/family-trees/<int:tree_id>/export')
 def export_family_tree(tree_id):
     current_user = get_current_user()
@@ -1806,6 +2296,7 @@ def queries():
     to_id = request.args.get("to_id")
     relationship_engine = request.args.get("relationship_engine", "sql")
     relationship_message = None
+    relationship_notice = None
 
     with get_connection() as conn:
         with conn.cursor() as cursor:
@@ -1849,7 +2340,22 @@ def queries():
                         if relationship_engine == "python":
                             relationship_result = query_relationship_path_python(from_id_int, to_id_int)
                         else:
-                            relationship_result = query_relationship_path(from_id_int, to_id_int)
+                            try:
+                                relationship_result = query_relationship_path(
+                                    from_id_int,
+                                    to_id_int,
+                                    timeout_ms=RELATIONSHIP_SQL_TIMEOUT_MS,
+                                )
+                            except psycopg2.Error as err:
+                                if getattr(err, "pgcode", None) == "57014":
+                                    relationship_result = query_relationship_path_python(from_id_int, to_id_int)
+                                    relationship_engine = "python"
+                                    relationship_notice = (
+                                        f"SQL recursive query exceeded {RELATIONSHIP_SQL_TIMEOUT_MS} ms; "
+                                        "switched to Python engine automatically."
+                                    )
+                                else:
+                                    raise
                         relationship_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
     return render_template(
@@ -1859,6 +2365,7 @@ def queries():
         ancestor_message=ancestor_message,
         relationship_result=relationship_result,
         relationship_message=relationship_message,
+        relationship_notice=relationship_notice,
         relationship_engine=relationship_engine,
         ancestor_time_ms=ancestor_time_ms,
         relationship_time_ms=relationship_time_ms,
@@ -1943,27 +2450,38 @@ def task_2():
     message = None
     query_ran = False
     ancestors = []
-    ancestor_tree = None
+    ancestor_total_count = 0
+    ancestor_total_pages = 0
+    ancestor_page_size = 200
+    ancestor_page = 1
+    ancestor_root_person_id = None
+    ancestor_max_depth = None
     ancestor_time_ms = None
-    person_id = request.args.get('person_id', '').strip()
-    max_depth = request.args.get('max_depth', '').strip()
+    person_id_raw = request.args.get('person_id', '').strip()
+    max_depth_raw = request.args.get('max_depth', '').strip()
+    page_raw = request.args.get('page', '1').strip()
+    person_id = None
+    max_depth = None
 
-    if person_id:
+    try:
+        ancestor_page = int(page_raw)
+        if ancestor_page < 1:
+            raise ValueError
+    except ValueError:
+        ancestor_page = 1
+
+    if person_id_raw:
         query_ran = True
         try:
-            person_id = int(person_id)
+            person_id = int(person_id_raw)
+            if person_id < 1:
+                raise ValueError
         except ValueError:
-            message = "Person ID must be a number."
+            message = "Person ID must be a positive number."
         else:
-            if max_depth:
-                try:
-                    max_depth = int(max_depth)
-                    if max_depth < 1:
-                        raise ValueError
-                except ValueError:
-                    message = "Max depth must be a positive number."
-            else:
-                max_depth = None
+            max_depth, depth_error = parse_optional_max_depth(max_depth_raw)
+            if depth_error:
+                message = depth_error
         if message is None:
             with get_connection() as conn:
                 with conn.cursor() as cursor:
@@ -1974,17 +2492,34 @@ def task_2():
                     elif not can_access_tree(cursor, get_current_user(), row[0]):
                         message = "You do not have permission to view this person."
                     else:
+                        ancestor_root_person_id = person_id
+                        ancestor_max_depth = max_depth
                         start_time = time.perf_counter()
-                        ancestors = query_task_2_ancestors(person_id, max_depth)
-                        ancestor_tree = build_ancestor_tree(cursor, person_id, max_depth)
+                        all_ancestors = query_task_2_ancestors(person_id, max_depth)
                         ancestor_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                        ancestor_total_count = len(all_ancestors)
+                        if ancestor_total_count > 0:
+                            ancestor_total_pages = (ancestor_total_count + ancestor_page_size - 1) // ancestor_page_size
+                            if ancestor_page > ancestor_total_pages:
+                                ancestor_page = ancestor_total_pages
+                            start_idx = (ancestor_page - 1) * ancestor_page_size
+                            end_idx = start_idx + ancestor_page_size
+                            ancestors = all_ancestors[start_idx:end_idx]
+                        else:
+                            ancestors = []
+                            ancestor_total_pages = 0
 
     return render_template(
         'task_2.html',
         message=message,
         query_ran=query_ran,
         ancestors=ancestors,
-        ancestor_tree=ancestor_tree,
+        ancestor_total_count=ancestor_total_count,
+        ancestor_total_pages=ancestor_total_pages,
+        ancestor_page_size=ancestor_page_size,
+        ancestor_page=ancestor_page,
+        ancestor_root_person_id=ancestor_root_person_id,
+        ancestor_max_depth=ancestor_max_depth,
         ancestor_time_ms=ancestor_time_ms,
     )
 
@@ -2156,6 +2691,67 @@ def task_5():
         query_ran=query_ran,
         early_births=early_births,
         tree_options=tree_options,
+    )
+
+
+@app.route('/tasks/6')
+def task_6():
+    message = None
+    query_ran = False
+    descendants = []
+    descendant_root_person_id = None
+    descendant_max_depth = None
+    descendant_time_ms = None
+    person_id_raw = request.args.get('person_id', '').strip()
+    max_depth_raw = request.args.get('max_depth', '').strip()
+    person_id = None
+    max_depth = None
+
+    if person_id_raw:
+        query_ran = True
+        try:
+            person_id = int(person_id_raw)
+            if person_id < 1:
+                raise ValueError
+        except ValueError:
+            message = "Person ID must be a positive number."
+        else:
+            max_depth, depth_error = parse_optional_max_depth(max_depth_raw)
+            if depth_error:
+                message = depth_error
+
+        if message is None:
+            with get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT tree_id
+                        FROM "Person"
+                        WHERE person_id = %s
+                        """,
+                        (person_id,),
+                    )
+                    row = cursor.fetchone()
+                    if not row:
+                        message = f"Person {person_id} not found."
+                    elif not can_access_tree(cursor, get_current_user(), row[0]):
+                        message = "You do not have permission to view this person."
+                    else:
+                        visible_tree_ids = get_visible_tree_ids(cursor, get_current_user())
+                        descendant_root_person_id = person_id
+                        descendant_max_depth = max_depth
+                        start_time = time.perf_counter()
+                        descendants = query_task_6_descendants(person_id, max_depth, visible_tree_ids)
+                        descendant_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+    return render_template(
+        'task_6.html',
+        message=message,
+        query_ran=query_ran,
+        descendants=descendants,
+        descendant_root_person_id=descendant_root_person_id,
+        descendant_max_depth=descendant_max_depth,
+        descendant_time_ms=descendant_time_ms,
     )
 
 

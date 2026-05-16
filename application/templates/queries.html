@@ -88,11 +88,14 @@
     <button type="submit" class="btn">Search Relationship</button>
   </form>
   <div class="result-box">
-    {% if relationship_message %}
-    <div>{{ relationship_message }}</div>
-    {% elif relationship_result %}
+    {% if relationship_notice %}
+    <div>{{ relationship_notice }}</div>
+    {% endif %}
+    {% if relationship_result %}
     <div>Path Length: {{ relationship_result.depth }}</div>
     <div>Path: {{ relationship_result.path_text }}</div>
+    {% elif relationship_message %}
+    <div>{{ relationship_message }}</div>
     {% else %}
     If a relationship exists, the path will appear here.
     {% endif %}

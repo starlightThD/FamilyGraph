@@ -95,3 +95,17 @@ CREATE TABLE IF NOT EXISTS "FamilyTreeInvite" (
         CHECK (status IN ('pending', 'accepted', 'revoked')),
     CONSTRAINT uq_tree_invitee UNIQUE (tree_id, invitee_email)
 );
+
+-- Physical optimization indexes
+-- For ancestor / kinship recursive queries:
+-- frequent predicate: rel_type='parent' AND person2_id = ?
+-- and need to read person1_id (parent node).
+CREATE INDEX IF NOT EXISTS idx_rel_parent_person2_person1
+ON "Relationship" (person2_id, person1_id)
+WHERE rel_type = 'parent';
+
+-- For generation-based analytics in Task 5:
+-- frequent filters: tree_id + generation, and birth_date IS NOT NULL.
+CREATE INDEX IF NOT EXISTS idx_person_tree_generation_birth_notnull
+ON "Person" (tree_id, generation, birth_date)
+WHERE birth_date IS NOT NULL;

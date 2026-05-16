@@ -41,13 +41,17 @@
   <div class="panel-header">
     <div>
       <h2>Ancestor Tree (Interactive)</h2>
-      <p class="panel-subtitle">Visual hierarchy with pan/zoom controls. Left node is the selected person; right side shows ancestors.</p>
+      <p class="panel-subtitle">Visual hierarchy with pan/zoom controls. Click nodes to expand/collapse ancestors progressively.</p>
     </div>
   </div>
   <div class="result-box">
-    {% if query_ran and ancestor_tree %}
-    <div id="ancestor-tree-canvas" class="ancestor-canvas-shell"></div>
-    <script id="ancestor-tree-data" type="application/json">{{ ancestor_tree | tojson }}</script>
+    {% if query_ran and ancestor_root_person_id and not message %}
+    <div
+      id="ancestor-tree-vue-app"
+      class="ancestor-canvas-shell"
+      data-person-id="{{ ancestor_root_person_id }}"
+      data-max-depth="{{ ancestor_max_depth if ancestor_max_depth is not none else '' }}"
+    ></div>
     {% elif query_ran %}
     <div>No ancestor tree returned.</div>
     {% else %}
@@ -66,6 +70,11 @@
   <div class="table-wrap">
     {% if query_ran %}
     {% if ancestors %}
+    <div class="result-box">
+      Showing page {{ ancestor_page }} / {{ ancestor_total_pages }} ·
+      {{ ancestors|length }} rows on this page ·
+      {{ ancestor_total_count }} total ancestors
+    </div>
     <table class="table">
       <thead>
         <tr>
@@ -84,6 +93,27 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if ancestor_total_pages > 1 %}
+    <div class="table-actions">
+      {% if ancestor_page > 1 %}
+      <a
+        class="btn ghost small"
+        href="{{ url_for('task_2', person_id=request.args.get('person_id', ''), max_depth=request.args.get('max_depth', ''), page=ancestor_page - 1) }}"
+      >Previous Page</a>
+      {% else %}
+      <span class="btn ghost small" aria-disabled="true">Previous Page</span>
+      {% endif %}
+
+      {% if ancestor_page < ancestor_total_pages %}
+      <a
+        class="btn ghost small"
+        href="{{ url_for('task_2', person_id=request.args.get('person_id', ''), max_depth=request.args.get('max_depth', ''), page=ancestor_page + 1) }}"
+      >Next Page</a>
+      {% else %}
+      <span class="btn ghost small" aria-disabled="true">Next Page</span>
+      {% endif %}
+    </div>
+    {% endif %}
     {% else %}
     <div class="result-box">No ancestor records returned.</div>
     {% endif %}
@@ -93,8 +123,8 @@
   </div>
 </section>
 
-{% if ancestor_tree %}
+{% if ancestor_root_person_id and not message %}
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="{{ url_for('static', filename='js/ancestor_tree_canvas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ancestor_tree_lazy_canvas.js') }}"></script>
 {% endif %}
 {% endblock %}

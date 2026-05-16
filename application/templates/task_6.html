@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}Task 6 - Direct Descendants{% endblock %}
+
+{% block page_header %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Task 6</p>
+    <h1>Direct Descendants Query</h1>
+    <p class="page-subtitle">Query all direct descendants without male-line restrictions.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn ghost" href="{{ url_for('queries') }}">Relationship Search</a>
+    <a class="btn" href="{{ url_for('tree_preview') }}">Tree Preview</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Direct Descendant Query</h2>
+      <p class="panel-subtitle">Input a member ID and return all direct descendants recursively.</p>
+    </div>
+  </div>
+  <form class="form inline" method="get" action="{{ url_for('task_6') }}">
+    <label>Person ID<input type="number" name="person_id" value="{{ request.args.get('person_id', '') }}" min="1" required /></label>
+    <label>Max Depth (Optional)<input type="number" name="max_depth" min="1" value="{{ request.args.get('max_depth', '') }}" /></label>
+    <button type="submit" class="btn">Run Query</button>
+  </form>
+  {% if message %}
+  <div class="alert">{{ message }}</div>
+  {% endif %}
+  {% if query_ran and descendant_time_ms is not none %}
+  <div class="result-box">Query time: {{ descendant_time_ms }} ms</div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Descendant Tree (Interactive)</h2>
+      <p class="panel-subtitle">Click nodes to expand/collapse children recursively.</p>
+    </div>
+  </div>
+  <div class="result-box">
+    {% if query_ran and descendant_root_person_id %}
+    <div
+      id="descendant-tree-vue-app"
+      class="ancestor-canvas-shell"
+      data-person-id="{{ descendant_root_person_id }}"
+      data-max-depth="{{ descendant_max_depth if descendant_max_depth is not none else '' }}"
+    ></div>
+    {% elif query_ran %}
+    <div>No descendant tree returned.</div>
+    {% else %}
+    <div>Tree will appear here.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>Descendant List</h2>
+      <p class="panel-subtitle">Flattened depth list for direct descendants.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    {% if query_ran %}
+    {% if descendants %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Depth</th>
+          <th>Descendant ID</th>
+          <th>Name</th>
+          <th>Gender</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in descendants %}
+        <tr>
+          <td>{{ row.depth }}</td>
+          <td>{{ row.id }}</td>
+          <td>{{ row.name }}</td>
+          <td>{{ row.gender }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="result-box">No direct descendant records returned.</div>
+    {% endif %}
+    {% else %}
+    <div class="result-box">Results will appear here.</div>
+    {% endif %}
+  </div>
+</section>
+
+{% if descendant_root_person_id %}
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="{{ url_for('static', filename='js/descendant_tree_lazy_canvas.js') }}"></script>
+{% endif %}
+{% endblock %}
