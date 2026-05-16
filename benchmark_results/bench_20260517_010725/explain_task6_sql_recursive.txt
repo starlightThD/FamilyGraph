@@ -1,0 +1,65 @@
+Sort  (cost=1856.44..1856.74 rows=121 width=22) (actual time=0.103..0.104 rows=9 loops=1)
+  Output: dw.descendant_id, p.name, p.gender, (min(dw.depth))
+  Sort Key: (min(dw.depth)), dw.descendant_id
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=114
+  CTE descendant_walk
+    ->  Recursive Union  (cost=0.84..869.99 rows=121 width=40) (actual time=0.031..0.056 rows=9 loops=1)
+          Buffers: shared hit=67
+          ->  Nested Loop  (cost=0.84..59.19 rows=1 width=40) (actual time=0.030..0.037 rows=9 loops=1)
+                Output: c.person_id, 1, ARRAY[43638, c.person_id]
+                Inner Unique: true
+                Buffers: shared hit=40
+                ->  Index Only Scan using "Relationship_pkey" on public."Relationship" r  (cost=0.42..8.56 rows=6 width=4) (actual time=0.018..0.018 rows=9 loops=1)
+                      Output: r.person1_id, r.person2_id, r.rel_type
+                      Index Cond: ((r.person1_id = 43638) AND (r.rel_type = 'parent'::rel_type_enum))
+                      Heap Fetches: 0
+                      Buffers: shared hit=4
+                ->  Index Scan using "Person_pkey" on public."Person" c  (cost=0.42..8.44 rows=1 width=4) (actual time=0.002..0.002 rows=1 loops=9)
+                      Output: c.person_id, c.tree_id, c.name, c.gender, c.birth_date, c.generation, c.death_date
+                      Index Cond: (c.person_id = r.person2_id)
+                      Filter: (c.tree_id = ANY ('{2}'::integer[]))
+                      Buffers: shared hit=36
+          ->  Nested Loop  (cost=0.84..80.96 rows=12 width=40) (actual time=0.016..0.017 rows=0 loops=1)
+                Output: c_1.person_id, (dw_1.depth + 1), (dw_1.path || c_1.person_id)
+                Inner Unique: true
+                Join Filter: (c_1.person_id <> ALL (dw_1.path))
+                Buffers: shared hit=27
+                ->  Nested Loop  (cost=0.42..50.35 rows=63 width=40) (actual time=0.016..0.016 rows=0 loops=1)
+                      Output: dw_1.depth, dw_1.path, r_1.person2_id
+                      Buffers: shared hit=27
+                      ->  WorkTable Scan on descendant_walk dw_1  (cost=0.00..0.20 rows=10 width=40) (actual time=0.000..0.001 rows=9 loops=1)
+                            Output: dw_1.descendant_id, dw_1.depth, dw_1.path
+                      ->  Index Only Scan using "Relationship_pkey" on public."Relationship" r_1  (cost=0.42..4.96 rows=6 width=8) (actual time=0.002..0.002 rows=0 loops=9)
+                            Output: r_1.person1_id, r_1.person2_id, r_1.rel_type
+                            Index Cond: ((r_1.person1_id = dw_1.descendant_id) AND (r_1.rel_type = 'parent'::rel_type_enum))
+                            Heap Fetches: 0
+                            Buffers: shared hit=27
+                ->  Index Scan using "Person_pkey" on public."Person" c_1  (cost=0.42..0.46 rows=1 width=4) (never executed)
+                      Output: c_1.person_id, c_1.tree_id, c_1.name, c_1.gender, c_1.birth_date, c_1.generation, c_1.death_date
+                      Index Cond: (c_1.person_id = r_1.person2_id)
+                      Filter: (c_1.tree_id = ANY ('{2}'::integer[]))
+  ->  GroupAggregate  (cost=979.54..982.27 rows=121 width=22) (actual time=0.087..0.090 rows=9 loops=1)
+        Output: dw.descendant_id, p.name, p.gender, min(dw.depth)
+        Group Key: dw.descendant_id, p.name, p.gender
+        Buffers: shared hit=111
+        ->  Sort  (cost=979.54..979.85 rows=121 width=22) (actual time=0.084..0.084 rows=9 loops=1)
+              Output: dw.descendant_id, p.name, p.gender, dw.depth
+              Sort Key: dw.descendant_id, p.name, p.gender
+              Sort Method: quicksort  Memory: 25kB
+              Buffers: shared hit=111
+              ->  Nested Loop  (cost=0.42..975.36 rows=121 width=22) (actual time=0.036..0.068 rows=9 loops=1)
+                    Output: dw.descendant_id, p.name, p.gender, dw.depth
+                    Inner Unique: true
+                    Buffers: shared hit=103
+                    ->  CTE Scan on descendant_walk dw  (cost=0.00..2.42 rows=121 width=8) (actual time=0.033..0.058 rows=9 loops=1)
+                          Output: dw.descendant_id, dw.depth, dw.path
+                          Buffers: shared hit=67
+                    ->  Index Scan using "Person_pkey" on public."Person" p  (cost=0.42..8.04 rows=1 width=18) (actual time=0.001..0.001 rows=1 loops=9)
+                          Output: p.person_id, p.tree_id, p.name, p.gender, p.birth_date, p.generation, p.death_date
+                          Index Cond: (p.person_id = dw.descendant_id)
+                          Buffers: shared hit=36
+Planning:
+  Buffers: shared hit=229
+Planning Time: 0.572 ms
+Execution Time: 0.167 ms

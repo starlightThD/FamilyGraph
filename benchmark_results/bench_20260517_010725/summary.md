@@ -1,0 +1,18 @@
+# Benchmark Summary
+
+- generated_at: 2026-05-17T01:08:08
+- task2_person_id: 15240
+- task6_person_id: 43638
+- max_depth: None
+- warmup: 1
+- repeats: 8
+- task6_scope: same-tree
+- task6_visible_tree_ids: [2]
+
+| case | runs | avg_ms | p95_ms | min_ms | max_ms | row_count_min | row_count_max |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| task2_sql_dominant_mixed | 8 | 241.575 | 243.209 | 236.450 | 248.086 | 1804 | 1804 |
+| task2_sql_recursive_single_gen | 8 | 4468.437 | 4487.009 | 4429.956 | 4511.719 | 1804 | 1804 |
+| task6_python_assisted_single_gen | 8 | 3.946 | 4.749 | 3.112 | 4.997 | 9 | 9 |
+| task6_sql_recursive_single_gen | 8 | 4.063 | 4.360 | 3.585 | 4.459 | 9 | 9 |
+

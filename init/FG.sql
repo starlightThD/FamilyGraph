@@ -104,6 +104,21 @@ CREATE INDEX IF NOT EXISTS idx_rel_parent_person2_person1
 ON "Relationship" (person2_id, person1_id)
 WHERE rel_type = 'parent';
 
+CREATE INDEX IF NOT EXISTS idx_rel_parent_person1_person2
+ON "Relationship" (person1_id, person2_id)
+WHERE rel_type = 'parent';
+
+-- For name prefix / fuzzy candidate search in Task 1:
+-- the query filters visible trees and matches the first three characters of name.
+CREATE INDEX IF NOT EXISTS idx_person_tree_name_prefix3
+ON "Person" (
+    tree_id,
+    (SUBSTRING(name FROM 1 FOR 1)),
+    (SUBSTRING(name FROM 2 FOR 1)),
+    (SUBSTRING(name FROM 3 FOR 1)),
+    person_id
+);
+
 -- Precomputed complete 2-generation ancestor view:
 -- Store one row only when the person has 2 direct parents and each parent has 2 parents.
 DROP MATERIALIZED VIEW IF EXISTS "Ancestor2";

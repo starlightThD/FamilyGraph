@@ -1,0 +1,49 @@
+Sort  (cost=3789.85..3790.80 rows=382 width=18) (actual time=4998.805..4998.846 rows=1804 loops=1)
+  Output: aw.ancestor_id, p.name, (min(aw.depth))
+  Sort Key: (min(aw.depth)), aw.ancestor_id
+  Sort Method: quicksort  Memory: 133kB
+  Buffers: shared hit=13272564, temp read=45486 written=77919
+  CTE ancestor_walk
+    ->  Recursive Union  (cost=0.42..958.68 rows=382 width=40) (actual time=0.031..2398.411 rows=1896079 loops=1)
+          Buffers: shared hit=5688242, temp read=31564 written=31564
+          ->  Index Only Scan using idx_rel_parent_person2_person1 on public."Relationship" r  (cost=0.42..8.46 rows=2 width=40) (actual time=0.030..0.031 rows=2 loops=1)
+                Output: r.person1_id, 1, ARRAY[r.person2_id, r.person1_id]
+                Index Cond: (r.person2_id = 15240)
+                Heap Fetches: 0
+                Buffers: shared hit=4
+          ->  Nested Loop  (cost=0.42..94.64 rows=38 width=40) (actual time=19.407..76.026 rows=75843 loops=25)
+                Output: r_1.person1_id, (aw_1.depth + 1), (aw_1.path || r_1.person1_id)
+                Buffers: shared hit=5688238, temp read=31564 written=7
+                ->  WorkTable Scan on ancestor_walk aw_1  (cost=0.00..0.40 rows=20 width=40) (actual time=0.002..4.920 rows=75843 loops=25)
+                      Output: aw_1.ancestor_id, aw_1.depth, aw_1.path
+                      Buffers: temp read=31564 written=7
+                ->  Index Only Scan using idx_rel_parent_person2_person1 on public."Relationship" r_1  (cost=0.42..4.68 rows=2 width=8) (actual time=0.001..0.001 rows=1 loops=1896079)
+                      Output: r_1.person2_id, r_1.person1_id
+                      Index Cond: (r_1.person2_id = aw_1.ancestor_id)
+                      Filter: (r_1.person1_id <> ALL (aw_1.path))
+                      Heap Fetches: 0
+                      Buffers: shared hit=5688238
+  ->  GroupAggregate  (cost=2807.15..2814.79 rows=382 width=18) (actual time=4819.682..4998.452 rows=1804 loops=1)
+        Output: aw.ancestor_id, p.name, min(aw.depth)
+        Group Key: aw.ancestor_id, p.name
+        Buffers: shared hit=13272561, temp read=45486 written=77919
+        ->  Sort  (cost=2807.15..2808.10 rows=382 width=18) (actual time=4811.913..4896.585 rows=1896079 loops=1)
+              Output: aw.ancestor_id, p.name, aw.depth
+              Sort Key: aw.ancestor_id, p.name
+              Sort Method: external merge  Disk: 55704kB
+              Buffers: shared hit=13272561, temp read=45486 written=77919
+              ->  Nested Loop  (cost=0.42..2790.77 rows=382 width=18) (actual time=0.060..4432.913 rows=1896079 loops=1)
+                    Output: aw.ancestor_id, p.name, aw.depth
+                    Inner Unique: true
+                    Buffers: shared hit=13272558, temp read=31564 written=63964
+                    ->  CTE Scan on ancestor_walk aw  (cost=0.00..7.64 rows=382 width=8) (actual time=0.033..2996.883 rows=1896079 loops=1)
+                          Output: aw.ancestor_id, aw.depth, aw.path
+                          Buffers: shared hit=5688242, temp read=31564 written=63964
+                    ->  Index Scan using "Person_pkey" on public."Person" p  (cost=0.42..7.29 rows=1 width=14) (actual time=0.001..0.001 rows=1 loops=1896079)
+                          Output: p.person_id, p.tree_id, p.name, p.gender, p.birth_date, p.generation, p.death_date
+                          Index Cond: (p.person_id = aw.ancestor_id)
+                          Buffers: shared hit=7584316
+Planning:
+  Buffers: shared hit=195
+Planning Time: 0.567 ms
+Execution Time: 5024.578 ms

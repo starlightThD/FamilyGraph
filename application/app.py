@@ -727,141 +727,206 @@ def query_task_2_ancestors(person_id, max_depth):
     """Input: person_id (int), max_depth (int|None). Output: list of {id, name, depth}."""
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            query = """
-                WITH RECURSIVE ancestor_walk AS (
-                    SELECT
-                        seed.ancestor_id,
-                        seed.step AS depth,
-                        ARRAY[%s::INTEGER] || seed.append_path AS path
-                    FROM (
-                        SELECT
-                            a2.grandparent1_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent1_id, a2.grandparent1_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = %s
-                        UNION ALL
-                        SELECT
-                            a2.grandparent2_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent1_id, a2.grandparent2_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = %s
-                        UNION ALL
-                        SELECT
-                            a2.grandparent3_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent2_id, a2.grandparent3_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = %s
-                        UNION ALL
-                        SELECT
-                            a2.grandparent4_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent2_id, a2.grandparent4_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = %s
-                        UNION ALL
-                        SELECT
-                            r.person1_id AS ancestor_id,
-                            1 AS step,
-                            ARRAY[r.person1_id] AS append_path
-                        FROM "Relationship" r
-                        WHERE r.rel_type = 'parent'
-                          AND r.person2_id = %s
-                          AND NOT EXISTS (
-                              SELECT 1 FROM "Ancestor2" a2f WHERE a2f.person_id = %s
-                          )
-                    ) seed
-                    WHERE (%s::INTEGER IS NULL OR seed.step <= %s::INTEGER)
-                    UNION ALL
-                    SELECT
-                        nxt.ancestor_id,
-                        aw.depth + nxt.step AS depth,
-                        aw.path || nxt.append_path
-                    FROM ancestor_walk aw
-                    JOIN LATERAL (
-                        SELECT
-                            a2.grandparent1_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent1_id, a2.grandparent1_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = aw.ancestor_id
-                        UNION ALL
-                        SELECT
-                            a2.grandparent2_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent1_id, a2.grandparent2_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = aw.ancestor_id
-                        UNION ALL
-                        SELECT
-                            a2.grandparent3_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent2_id, a2.grandparent3_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = aw.ancestor_id
-                        UNION ALL
-                        SELECT
-                            a2.grandparent4_id AS ancestor_id,
-                            2 AS step,
-                            ARRAY[a2.parent2_id, a2.grandparent4_id] AS append_path
-                        FROM "Ancestor2" a2
-                        WHERE a2.person_id = aw.ancestor_id
-                        UNION ALL
-                        SELECT
-                            r.person1_id AS ancestor_id,
-                            1 AS step,
-                            ARRAY[r.person1_id] AS append_path
-                        FROM "Relationship" r
-                        WHERE r.rel_type = 'parent'
-                          AND r.person2_id = aw.ancestor_id
-                          AND NOT EXISTS (
-                              SELECT 1 FROM "Ancestor2" a2f WHERE a2f.person_id = aw.ancestor_id
-                          )
-                    ) nxt ON TRUE
-                    WHERE NOT EXISTS (
-                        SELECT 1
-                        FROM unnest(nxt.append_path) AS step_id(id)
-                        WHERE step_id.id = ANY(aw.path)
-                    )
-                      AND (%s::INTEGER IS NULL OR aw.depth + nxt.step <= %s::INTEGER)
-                )
-                , ancestor_nodes AS (
-                    SELECT
-                        node.person_id AS ancestor_id,
-                        node.ord - 1 AS depth
-                    FROM ancestor_walk aw
-                    CROSS JOIN LATERAL unnest(aw.path) WITH ORDINALITY AS node(person_id, ord)
-                    WHERE node.ord > 1
-                )
-                SELECT
-                    an.ancestor_id,
-                    p.name,
-                    MIN(an.depth) AS depth
-                FROM ancestor_nodes an
-                JOIN "Person" p ON p.person_id = an.ancestor_id
-                GROUP BY an.ancestor_id, p.name
-                HAVING (%s::INTEGER IS NULL OR MIN(an.depth) <= %s::INTEGER)
-                ORDER BY MIN(an.depth), an.ancestor_id
-            """
             cursor.execute(
-                query,
-                (
-                    person_id,
-                    person_id,
-                    person_id,
-                    person_id,
-                    person_id,
-                    person_id,
-                    person_id,
-                    max_depth,
-                    max_depth,
-                    max_depth,
-                    max_depth,
-                    max_depth,
-                    max_depth,
-                ),
+                """
+                CREATE TEMP TABLE IF NOT EXISTS tmp_anc_frontier (
+                    node_id INTEGER PRIMARY KEY,
+                    depth INTEGER NOT NULL
+                ) ON COMMIT DROP;
+                CREATE TEMP TABLE IF NOT EXISTS tmp_anc_next_frontier (
+                    node_id INTEGER PRIMARY KEY,
+                    depth INTEGER NOT NULL
+                ) ON COMMIT DROP;
+                CREATE TEMP TABLE IF NOT EXISTS tmp_anc_expanded (
+                    node_id INTEGER PRIMARY KEY,
+                    depth INTEGER NOT NULL
+                ) ON COMMIT DROP;
+                CREATE TEMP TABLE IF NOT EXISTS tmp_anc_results (
+                    ancestor_id INTEGER PRIMARY KEY,
+                    depth INTEGER NOT NULL
+                ) ON COMMIT DROP;
+                CREATE TEMP TABLE IF NOT EXISTS tmp_anc_process (
+                    node_id INTEGER PRIMARY KEY,
+                    depth INTEGER NOT NULL
+                ) ON COMMIT DROP;
+                TRUNCATE tmp_anc_frontier, tmp_anc_next_frontier, tmp_anc_expanded, tmp_anc_results, tmp_anc_process;
+                """,
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO tmp_anc_frontier (node_id, depth)
+                VALUES (%s, 0)
+                """,
+                (person_id,),
+            )
+
+            while True:
+                cursor.execute("TRUNCATE tmp_anc_process, tmp_anc_next_frontier")
+                cursor.execute(
+                    """
+                    INSERT INTO tmp_anc_process (node_id, depth)
+                    SELECT f.node_id, f.depth
+                    FROM tmp_anc_frontier f
+                    LEFT JOIN tmp_anc_expanded e
+                      ON e.node_id = f.node_id
+                     AND e.depth <= f.depth
+                    WHERE e.node_id IS NULL
+                      AND (%s::INTEGER IS NULL OR f.depth < %s::INTEGER)
+                    ON CONFLICT (node_id) DO UPDATE
+                    SET depth = LEAST(tmp_anc_process.depth, EXCLUDED.depth)
+                    """,
+                    (max_depth, max_depth),
+                )
+                cursor.execute("SELECT COUNT(*) FROM tmp_anc_process")
+                if cursor.fetchone()[0] == 0:
+                    break
+
+                cursor.execute(
+                    """
+                    INSERT INTO tmp_anc_expanded (node_id, depth)
+                    SELECT node_id, depth
+                    FROM tmp_anc_process
+                    ON CONFLICT (node_id) DO UPDATE
+                    SET depth = LEAST(tmp_anc_expanded.depth, EXCLUDED.depth)
+                    """
+                )
+
+                cursor.execute(
+                    """
+                    WITH a2 AS (
+                        SELECT
+                            p.node_id,
+                            p.depth,
+                            a.parent1_id,
+                            a.parent2_id,
+                            a.grandparent1_id,
+                            a.grandparent2_id,
+                            a.grandparent3_id,
+                            a.grandparent4_id
+                        FROM tmp_anc_process p
+                        JOIN "Ancestor2" a ON a.person_id = p.node_id
+                    ),
+                    candidate AS (
+                        SELECT parent1_id AS ancestor_id, depth + 1 AS new_depth FROM a2
+                        UNION ALL SELECT parent2_id AS ancestor_id, depth + 1 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent1_id AS ancestor_id, depth + 2 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent2_id AS ancestor_id, depth + 2 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent3_id AS ancestor_id, depth + 2 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent4_id AS ancestor_id, depth + 2 AS new_depth FROM a2
+                    )
+                    INSERT INTO tmp_anc_results (ancestor_id, depth)
+                    SELECT ancestor_id, MIN(new_depth) AS new_depth
+                    FROM candidate
+                    WHERE (%s::INTEGER IS NULL OR new_depth <= %s::INTEGER)
+                    GROUP BY ancestor_id
+                    ON CONFLICT (ancestor_id) DO UPDATE
+                    SET depth = LEAST(tmp_anc_results.depth, EXCLUDED.depth)
+                    """,
+                    (max_depth, max_depth),
+                )
+
+                cursor.execute(
+                    """
+                    WITH a2 AS (
+                        SELECT
+                            p.depth,
+                            a.grandparent1_id,
+                            a.grandparent2_id,
+                            a.grandparent3_id,
+                            a.grandparent4_id
+                        FROM tmp_anc_process p
+                        JOIN "Ancestor2" a ON a.person_id = p.node_id
+                    ),
+                    nxt AS (
+                        SELECT grandparent1_id AS node_id, depth + 2 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent2_id AS node_id, depth + 2 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent3_id AS node_id, depth + 2 AS new_depth FROM a2
+                        UNION ALL SELECT grandparent4_id AS node_id, depth + 2 AS new_depth FROM a2
+                    )
+                    INSERT INTO tmp_anc_next_frontier (node_id, depth)
+                    SELECT node_id, MIN(new_depth)
+                    FROM nxt
+                    WHERE (%s::INTEGER IS NULL OR new_depth <= %s::INTEGER)
+                    GROUP BY node_id
+                    ON CONFLICT (node_id) DO UPDATE
+                    SET depth = LEAST(tmp_anc_next_frontier.depth, EXCLUDED.depth)
+                    """,
+                    (max_depth, max_depth),
+                )
+
+                cursor.execute(
+                    """
+                    WITH fallback AS (
+                        SELECT p.node_id, p.depth
+                        FROM tmp_anc_process p
+                        LEFT JOIN "Ancestor2" a ON a.person_id = p.node_id
+                        WHERE a.person_id IS NULL
+                    ),
+                    parent_edges AS (
+                        SELECT
+                            r.person1_id AS ancestor_id,
+                            f.depth + 1 AS new_depth
+                        FROM fallback f
+                        JOIN "Relationship" r
+                          ON r.rel_type = 'parent'
+                         AND r.person2_id = f.node_id
+                    )
+                    INSERT INTO tmp_anc_results (ancestor_id, depth)
+                    SELECT ancestor_id, MIN(new_depth)
+                    FROM parent_edges
+                    WHERE (%s::INTEGER IS NULL OR new_depth <= %s::INTEGER)
+                    GROUP BY ancestor_id
+                    ON CONFLICT (ancestor_id) DO UPDATE
+                    SET depth = LEAST(tmp_anc_results.depth, EXCLUDED.depth)
+                    """,
+                    (max_depth, max_depth),
+                )
+
+                cursor.execute(
+                    """
+                    WITH fallback AS (
+                        SELECT p.node_id, p.depth
+                        FROM tmp_anc_process p
+                        LEFT JOIN "Ancestor2" a ON a.person_id = p.node_id
+                        WHERE a.person_id IS NULL
+                    ),
+                    parent_edges AS (
+                        SELECT
+                            r.person1_id AS node_id,
+                            f.depth + 1 AS new_depth
+                        FROM fallback f
+                        JOIN "Relationship" r
+                          ON r.rel_type = 'parent'
+                         AND r.person2_id = f.node_id
+                    )
+                    INSERT INTO tmp_anc_next_frontier (node_id, depth)
+                    SELECT node_id, MIN(new_depth)
+                    FROM parent_edges
+                    WHERE (%s::INTEGER IS NULL OR new_depth <= %s::INTEGER)
+                    GROUP BY node_id
+                    ON CONFLICT (node_id) DO UPDATE
+                    SET depth = LEAST(tmp_anc_next_frontier.depth, EXCLUDED.depth)
+                    """,
+                    (max_depth, max_depth),
+                )
+
+                cursor.execute("TRUNCATE tmp_anc_frontier")
+                cursor.execute(
+                    """
+                    INSERT INTO tmp_anc_frontier (node_id, depth)
+                    SELECT node_id, depth
+                    FROM tmp_anc_next_frontier
+                    """
+                )
+
+            cursor.execute(
+                """
+                SELECT r.ancestor_id, p.name, r.depth
+                FROM tmp_anc_results r
+                JOIN "Person" p ON p.person_id = r.ancestor_id
+                ORDER BY r.depth, r.ancestor_id
+                """
             )
             rows = cursor.fetchall()
 
@@ -874,47 +939,85 @@ def query_task_6_descendants(person_id, max_depth, visible_tree_ids):
         return []
     with get_connection() as conn:
         with conn.cursor() as cursor:
-            query = """
-                WITH RECURSIVE descendant_walk AS (
+            best_depth = {}
+            expanded_depth = {}
+            frontier = {int(person_id): 0}
+
+            while frontier:
+                expandable = {
+                    node_id: depth
+                    for node_id, depth in frontier.items()
+                    if max_depth is None or depth < max_depth
+                }
+                if not expandable:
+                    break
+
+                process_ids = []
+                for node_id, depth in expandable.items():
+                    prev_expanded = expanded_depth.get(node_id)
+                    if prev_expanded is not None and prev_expanded <= depth:
+                        continue
+                    expanded_depth[node_id] = depth
+                    process_ids.append(node_id)
+
+                if not process_ids:
+                    break
+
+                cursor.execute(
+                    """
                     SELECT
-                        c.person_id AS descendant_id,
-                        1 AS depth,
-                        ARRAY[%s::INTEGER, c.person_id] AS path
+                        r.person1_id AS parent_id,
+                        r.person2_id AS child_id
                     FROM "Relationship" r
                     JOIN "Person" c ON c.person_id = r.person2_id
                     WHERE r.rel_type = 'parent'
-                      AND r.person1_id = %s
+                      AND r.person1_id = ANY(%s)
                       AND c.tree_id = ANY(%s)
-                    UNION ALL
-                    SELECT
-                        c.person_id AS descendant_id,
-                        dw.depth + 1 AS depth,
-                        dw.path || c.person_id
-                    FROM descendant_walk dw
-                    JOIN "Relationship" r
-                      ON r.rel_type = 'parent'
-                     AND r.person1_id = dw.descendant_id
-                    JOIN "Person" c ON c.person_id = r.person2_id
-                    WHERE c.tree_id = ANY(%s)
-                      AND NOT (c.person_id = ANY(dw.path))
+                    """,
+                    (process_ids, list(visible_tree_ids)),
                 )
-                SELECT
-                    dw.descendant_id,
-                    p.name,
-                    p.gender,
-                    MIN(dw.depth) AS depth
-                FROM descendant_walk dw
-                JOIN "Person" p ON p.person_id = dw.descendant_id
-                GROUP BY dw.descendant_id, p.name, p.gender
-                HAVING (%s::INTEGER IS NULL OR MIN(dw.depth) <= %s::INTEGER)
-                ORDER BY MIN(dw.depth), dw.descendant_id
-            """
-            cursor.execute(
-                query,
-                (person_id, person_id, list(visible_tree_ids), list(visible_tree_ids), max_depth, max_depth),
-            )
-            rows = cursor.fetchall()
+                edges = cursor.fetchall()
 
+                next_frontier = {}
+                for parent_id, child_id in edges:
+                    base_depth = expandable.get(parent_id)
+                    if base_depth is None:
+                        continue
+                    depth = base_depth + 1
+                    if max_depth is not None and depth > max_depth:
+                        continue
+
+                    prev_best = best_depth.get(child_id)
+                    if prev_best is None or depth < prev_best:
+                        best_depth[child_id] = depth
+
+                    prev_next = next_frontier.get(child_id)
+                    if prev_next is None or depth < prev_next:
+                        next_frontier[child_id] = depth
+
+                frontier = next_frontier
+
+            if not best_depth:
+                return []
+
+            descendant_ids = list(best_depth.keys())
+            cursor.execute(
+                """
+                SELECT person_id, name, gender
+                FROM "Person"
+                WHERE person_id = ANY(%s)
+                """,
+                (descendant_ids,),
+            )
+            meta = {row[0]: (row[1], row[2]) for row in cursor.fetchall()}
+
+    rows = sorted(
+        (
+            (did, meta.get(did, ("Unknown", "other"))[0], meta.get(did, ("Unknown", "other"))[1], depth)
+            for did, depth in best_depth.items()
+        ),
+        key=lambda item: (item[3], item[0]),
+    )
     return [{"id": r[0], "name": r[1], "gender": r[2], "depth": r[3]} for r in rows]
 
 
